@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="sr-Latn" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kontakt · Nenad Bakajin</title>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Jost:wght@400;500&family=Pinyon+Script&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="kontakt" id="top">
+  <main>
+    <section class="section" style="padding-top:calc(var(--header-h) + clamp(48px, 8vw, 120px))">
+      <div class="wrap contact-grid">
+        <div>
+          <p class="eyebrow" data-reveal data-i18n="c.eyebrow">Kontakt</p>
+          <h1 class="h1 mt-m" data-split data-i18n="c.title" style="font-size:clamp(56px,8vw,128px)">Ispričajmo <em>vašu priču.</em></h1>
+          <figure class="frame ratio-45 mt-l" data-img style="margin-left:0;margin-right:0;max-width:420px">
+            <img src="https://images.unsplash.com/photo-1669128453403-8fc3c4b272b1?w=1000&q=88&auto=format" alt="Mladenci drže buket" data-i18n-alt="c.photo-alt" class="contact-photo">
+          </figure>
+        </div>
+
+        <form class="form" id="contact-form" novalidate>
+          <div class="row-2">
+            <div class="field">
+              <label for="f-first"><span data-i18n="c.first">Ime</span> <span class="req" data-i18n="c.req">obavezno</span></label>
+              <input id="f-first" name="first" type="text" autocomplete="given-name" required aria-describedby="e-first">
+              <span class="err" id="e-first" aria-live="polite"></span>
+            </div>
+            <div class="field">
+              <label for="f-last"><span data-i18n="c.last">Prezime</span> <span class="req" data-i18n="c.req">obavezno</span></label>
+              <input id="f-last" name="last" type="text" autocomplete="family-name" required aria-describedby="e-last">
+              <span class="err" id="e-last" aria-live="polite"></span>
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="f-email"><span data-i18n="c.email">Imejl</span> <span class="req" data-i18n="c.req">obavezno</span></label>
+              <input id="f-email" name="email" type="email" inputmode="email" autocomplete="email" required aria-describedby="e-email">
+              <span class="err" id="e-email" aria-live="polite"></span>
+            </div>
+            <div class="field">
+              <label for="f-phone" data-i18n="c.phone">Telefon</label>
+              <input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel">
+              <span class="err"></span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-package" data-i18n="c.package">Paket</label>
+            <select id="f-package" name="package"></select>
+            <span class="err"></span>
+          </div>
+          <div class="field">
+            <label for="f-details"><span data-i18n="c.details">Detalji o venčanju</span> <span class="req" data-i18n="c.req">obavezno</span></label>
+            <textarea id="f-details" name="details" required aria-describedby="e-details"></textarea>
+            <span class="err" id="e-details" aria-live="polite"></span>
+          </div>
+          <div class="flex-between">
+            <span class="form-note" data-i18n="c.note">Polja označena kao obavezna potrebna su za odgovor.</span>
+            <button class="btn" type="submit"><span data-i18n="c.send">Pošaljite</span>
+              <svg class="arrow" viewBox="0 0 22 8" fill="none" aria-hidden="true"><path d="M0 4h21m0 0L17.5 .5M21 4l-3.5 3.5" stroke="currentColor"/></svg></button>
+          </div>
+          <p class="form-success" role="status" data-i18n="c.success">Hvala. Poruka je primljena, javiću vam se uskoro.</p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/i18n.js"></script>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="sr-Latn" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paket · Nenad Bakajin</title>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Jost:wght@400;500&family=Pinyon+Script&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="paket" id="top">
+  <main>
+    <section class="section" style="padding-top:calc(var(--header-h) + clamp(48px, 8vw, 120px))">
+      <div class="wrap pk-detail">
+        <div class="media">
+          <figure class="frame natural" data-img style="margin:0"><img id="p-img" src="" alt=""></figure>
+        </div>
+        <div>
+          <p class="eyebrow"><a href="ponuda.html" data-i18n="p.back">← Ponuda</a> &nbsp;·&nbsp; <span id="p-group"></span></p>
+          <h1 class="h2 mt-m" id="p-title" data-split></h1>
+          <p class="lead mt-m italic" id="p-intro" data-reveal style="font-size:clamp(22px,2.2vw,32px)"></p>
+          <p class="eyebrow mt-l" data-reveal data-i18n="p.includes">Paket uključuje</p>
+          <ul class="inc-list" id="p-list" data-stagger></ul>
+          <a class="btn mt-l" id="p-cta" href="kontakt.html" data-reveal><span data-i18n="p.cta">Upit za ovaj paket</span>
+            <svg class="arrow" viewBox="0 0 22 8" fill="none" aria-hidden="true"><path d="M0 4h21m0 0L17.5 .5M21 4l-3.5 3.5" stroke="currentColor"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section tight">
+      <div class="wrap">
+        <nav class="pk-nav" aria-label="Ostali paketi">
+          <a id="p-prev" href="#"><span class="eyebrow" data-i18n="p.prev">← Prethodni</span><span class="h3" id="p-prev-name"></span></a>
+          <a id="p-next" href="#"><span class="eyebrow" data-i18n="p.next">Sledeći →</span><span class="h3" id="p-next-name"></span></a>
+        </nav>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/i18n.js"></script>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

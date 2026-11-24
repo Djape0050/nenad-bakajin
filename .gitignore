@@ -1,0 +1,6 @@
+# radni i pomoćni fajlovi koji ne idu na sajt
+_reference/
+*.zip
+.claude/
+Thumbs.db
+.DS_Store

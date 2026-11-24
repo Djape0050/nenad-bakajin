@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="sr-Latn" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nenad Bakajin · Fotografija venčanja</title>
+  <meta name="description" content="Nenad Bakajin · fotografija i film venčanja. Bezvremeno, promišljeno, sofisticirano.">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Jost:wght@400;500&family=Pinyon+Script&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://videos.pexels.com">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="home" data-header="light" id="top">
+
+  <main>
+    <!-- 1. HERO · video kamere koja snima -->
+    <section class="hero" data-dark aria-label="Uvod">
+      <div class="hero-media" aria-hidden="true"></div>
+      <div class="hero-shade" aria-hidden="true"></div>
+      <span class="hero-rec" aria-hidden="true">Rec · 6×6</span>
+      <div class="hero-inner">
+        <h1 class="hero-name">Nenad Bakajin</h1>
+        <div class="hero-meta">
+          <p class="hero-intro" id="hero-intro"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. ABOUT -->
+    <section class="section statement" id="statement-sec">
+      <div class="wrap center">
+        <p class="eyebrow" data-reveal data-i18n="home.about">About</p>
+        <p class="lead mt-m" id="statement" data-scrub-words></p>
+        <span class="statement-rule" aria-hidden="true"></span>
+      </div>
+    </section>
+
+    <section class="section tight" id="about" style="padding-top:0">
+      <div class="wrap about-grid">
+        <div class="about-media">
+          <div class="about-frame">
+            <figure class="frame" data-img style="margin:0">
+              <video muted loop playsinline preload="none" data-src="https://videos.pexels.com/video-files/39917032/17032013_720_1280_50fps.mp4" class="bw" aria-hidden="true"></video>
+            </figure>
+            <span class="about-vert" aria-hidden="true">Twin-lens reflex · 6×6</span>
+          </div>
+          <div class="caption"><span>Twin-lens reflex · 6×6</span><span>N° 01</span></div>
+        </div>
+        <div class="about-copy">
+          <div class="body-text" id="about-text" data-stagger></div>
+          <p class="motto" id="motto" data-stagger></p>
+          <div class="body-text" id="about-bg" data-stagger></div>
+          <p class="signature" data-reveal>Nenad Bakajin</p>
+          <a class="btn mt-l" href="kontakt.html" data-reveal><span data-i18n="home.contact">Kontakt</span>
+            <svg class="arrow" viewBox="0 0 22 8" fill="none" aria-hidden="true"><path d="M0 4h21m0 0L17.5 .5M21 4l-3.5 3.5" stroke="currentColor"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Selected works · pinned horizontal strip -->
+    <section class="strip" data-dark aria-labelledby="strip-title">
+      <div class="strip-head">
+        <div>
+          <p class="eyebrow light" data-i18n="home.strip.eyebrow">Portfolio</p>
+          <h2 class="h2 mt-m" id="strip-title" data-split data-i18n="home.strip.title">Parovi i <em>njihove priče</em></h2>
+        </div>
+        <a class="link-line" href="portfolio.html" data-i18n="home.strip.all">Ceo portfolio</a>
+      </div>
+      <div class="strip-track" id="strip-track"></div>
+    </section>
+
+    <!-- Quote · Paul Cézanne -->
+    <section class="quote" data-dark aria-label="Citat">
+      <video muted loop playsinline preload="none" data-src="https://videos.pexels.com/video-files/28830655/12488867_1280_720_30fps.mp4" aria-hidden="true"></video>
+      <blockquote>
+        <p id="quote-text" lang="en"></p>
+        <cite class="eyebrow light" id="quote-author"></cite>
+      </blockquote>
+    </section>
+
+    <!-- Paketi -->
+    <section class="section on-bone" id="paketi">
+      <div class="wrap">
+        <div class="sec-head">
+          <div>
+            <p class="eyebrow" data-i18n="home.pk.eyebrow">Ponuda</p>
+            <h2 class="h2 mt-m" data-split data-i18n="home.pk.title">Paketi</h2>
+          </div>
+          <p class="side" data-reveal data-i18n="home.pk.side">Svaki nivo postoji kao paket fotografije i kao paket filma. Šta tačno uključuju, vidi se kada otvorite paket.</p>
+        </div>
+        <div class="tier-grid" id="tier-grid" data-stagger></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/i18n.js"></script>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
