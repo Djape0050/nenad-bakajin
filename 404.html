@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stranica nije pronađena · Nenad Bakajin</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&family=Jost:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink: #0f0e0d; --paper: #ffffff; --gold: #b8955a; --muted: #5c5752; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Jost", system-ui, sans-serif;
+      display: grid; place-items: center; text-align: center; padding: 16px; }
+    p.eyebrow { font-size: 11px; letter-spacing: .32em; text-transform: uppercase; color: var(--muted); margin: 0; }
+    h1 { font-family: "Playfair Display", Georgia, serif; font-weight: 400; font-size: clamp(40px, 7vw, 88px); line-height: 1.05; margin: 28px 0; }
+    h1 em { color: var(--gold); }
+    a { display: inline-flex; align-items: center; min-height: 48px; padding: 0 30px; border: 1px solid var(--gold);
+      color: var(--ink); text-decoration: none; font-size: 11px; letter-spacing: .3em; text-transform: uppercase; }
+    a:hover { background: var(--gold); color: #fff; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">404</p>
+    <h1>Ova stranica <em>ne postoji.</em></h1>
+    <a id="home" href="/">Nazad na početnu</a>
+  </main>
+  <script>
+    // GitHub Pages serves this file for any missing address inside the site.
+    // Link back to the site's own root (e.g. /nenad-bakajin/), whatever the folder name is.
+    (function () {
+      var first = location.pathname.split('/')[1];
+      var root = location.hostname.endsWith('github.io') && first ? '/' + first + '/' : '/';
+      document.getElementById('home').href = root;
+      try { if (localStorage.getItem('nb-lang') === 'en') {
+        document.documentElement.lang = 'en';
+        document.title = 'Page not found · Nenad Bakajin';
+        document.querySelector('h1').innerHTML = 'This page <em>does not exist.</em>';
+        document.getElementById('home').textContent = 'Back to the home page';
+      } } catch (e) {}
+    })();
+  </script>
+</body>
+</html>

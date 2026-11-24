@@ -22,6 +22,9 @@ window.SITE = {
       PX + '10261159/10261159-hd_2048_1080_25fps.mp4', // TLR kamera u rukama (1080p)
       PX + '28830655/12488868_1920_1080_30fps.mp4'     // svetlo pada na kameru (1080p)
     ],
+    // still frames shown until the video starts (or if a phone blocks autoplay)
+    posterWide: 'https://images.pexels.com/videos/10261286/pictures/preview-0.jpeg',
+    posterTall: 'https://images.pexels.com/videos/39917032/pexels-photo-39917032.jpeg?auto=compress&w=1080',
     heroTall: [
       PX + '39917032/17032014_1080_1920_50fps.mp4',   // Rollei-tip TLR, krupni plan (1080p)
       PX + '39917033/17031995_1080_1920_50fps.mp4',   // rukovanje kamerom (1080p)

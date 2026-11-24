@@ -66,7 +66,7 @@
   const IG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/></svg>`;
 
   const NAV = ['about', 'portfolio', 'ponuda', 'blog', 'kontakt'].map((key) => ({
-    key, label: t('nav.' + key), href: key === 'about' ? 'index.html#about' : key + '.html'
+    key, label: t('nav.' + key), href: key === 'about' ? 'index.html#statement-sec' : key + '.html'
   }));
   const activeKey = { home: '', portfolio: 'portfolio', gallery: 'portfolio', ponuda: 'ponuda', paket: 'ponuda', blog: 'blog', post: 'blog', kontakt: 'kontakt' }[page];
 
@@ -486,6 +486,11 @@
       box.append(v);
       return v;
     });
+    // A still frame is visible straight away, so the hero is never an empty black box
+    // (slow network, or phones in power-saving mode that refuse to autoplay video).
+    const poster = tall ? S.video.posterTall : S.video.posterWide;
+    if (poster) { vids[0].poster = poster; vids[0].classList.add('is-active'); }
+
     const canPlay = (v) => v.readyState >= 3;
     const whenReady = (v, fn) => (canPlay(v) ? fn() : v.addEventListener('canplay', fn, { once: true }));
     const warm = (v) => { if (v.preload !== 'auto') { v.preload = 'auto'; v.load(); } };
@@ -493,16 +498,29 @@
     if (reduce) { whenReady(vids[0], () => vids[0].classList.add('is-active')); return; }
 
     let cur = 0;
+    let onScreen = true;
     const SEG = 8; // seconds per shot
     const show = (n) => {
       vids.forEach((x, k) => x.classList.toggle('is-active', k === n));
       // after the crossfade, stop the old shot and rewind it quietly, off screen
       setTimeout(() => vids.forEach((x, k) => { if (k !== n) { x.pause(); try { x.currentTime = 0; } catch (_) {} } }), 2600);
     };
-    vids[0].play().catch(() => {});
+    const start = () => vids[cur].play().catch(() => {});
+    start();
     whenReady(vids[0], () => { show(0); if (vids[1]) warm(vids[1]); });
+    // if autoplay was blocked, start on the first touch / click anywhere
+    const kick = () => { if (onScreen && vids[cur].paused) start(); };
+    ['touchstart', 'pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, kick, { once: true, passive: true }));
+    // stop decoding while the hero is scrolled out of view (saves battery and keeps scrolling smooth)
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(([e]) => {
+        onScreen = e.isIntersecting;
+        if (onScreen) start(); else vids.forEach((x) => x.pause());
+      }).observe(box);
+    }
     if (vids.length < 2) return;
     setInterval(() => {
+      if (!onScreen || document.hidden) return;
       const nxt = (cur + 1) % vids.length;
       const v = vids[nxt];
       warm(v);
@@ -519,18 +537,19 @@
     });
     const vids = $$('video[data-src]');
     if (!vids.length) return;
+    // normal speed: slowed-down playback of 25–50 fps clips looks choppy
     const io = new IntersectionObserver((entries) => {
       entries.forEach(({ isIntersecting, target: v }) => {
         if (isIntersecting) {
-          if (!v.src) { v.src = v.dataset.src; v.playbackRate = 0.7; }
-          v.playbackRate = 0.7;
+          if (!v.src) { v.preload = 'auto'; v.src = v.dataset.src; }
           if (!reduce) v.play().catch(() => {});
         } else v.pause();
       });
-    }, { rootMargin: '200px 0px' });
+    }, { rootMargin: '300px 0px' });
     vids.forEach((v) => {
       v.muted = true;
-      v.addEventListener('loadedmetadata', () => { v.playbackRate = 0.7; if (reduce) v.currentTime = 1.5; });
+      v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+      v.addEventListener('loadedmetadata', () => { if (reduce) v.currentTime = 1.5; });
       io.observe(v);
     });
   }
@@ -648,7 +667,13 @@
       a.addEventListener('click', (e) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey) return;
         const url = new URL(href, location.href);
-        if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
+        // "/site/" and "/site/index.html" are the same page (GitHub Pages serves both)
+        const norm = (p) => p.replace(/index\.html$/, '');
+        if (norm(url.pathname) === norm(location.pathname) && url.search === location.search && url.hash) {
+          const target = $(url.hash);
+          if (target) { e.preventDefault(); lenis ? lenis.scrollTo(target, { duration: 1.6 }) : target.scrollIntoView({ behavior: 'smooth' }); }
+          return;
+        }
         e.preventDefault();
         if (!curtain) { location.href = href; return; }
         gsap.set(curtain, { display: 'grid', yPercent: 100 });
