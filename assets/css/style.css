@@ -772,3 +772,6 @@ body { font-weight: 400; }
 /* letters with descenders (the J in BAKAJIN, and g/j/p elsewhere) must not be clipped by the reveal mask */
 .hero-name .word { padding-bottom: .22em; margin-bottom: -.22em; }
 .w { padding-bottom: .2em; margin-bottom: -.2em; }
+
+/* phones: no animated film grain (a full-screen layer redrawn many times a second) */
+@media (hover: none) { .grain { display: none; } }

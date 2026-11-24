@@ -476,56 +476,75 @@
     if (!box) return;
     const tall = window.matchMedia('(max-aspect-ratio: 4/5)').matches;
     const srcs = tall ? S.video.heroTall : S.video.heroWide;
-    // Smooth playback: normal speed (slowing a 25 fps clip makes it stutter), no seeking
-    // right before a shot is shown, and the next shot only fades in once it has buffered.
-    const vids = srcs.map((src, n) => {
+    // How it plays (works the same on phones and desktop):
+    // - normal speed (slowing a 25–50 fps clip makes it stutter)
+    // - the next shot is started with play() first and only faded in once it is really
+    //   playing. Phones (iOS Safari, Android data saver) do not download a video that
+    //   isn't playing, so waiting for it to "buffer" first would wait forever.
+    // - at most two videos hold a source at any time; the old one is unloaded after the
+    //   crossfade, because phones have very few video decoders and little memory.
+    const vids = srcs.map(() => {
       const v = document.createElement('video');
-      v.muted = true; v.playsInline = true; v.loop = true; v.preload = n === 0 ? 'auto' : 'none';
+      v.muted = true; v.playsInline = true; v.loop = true; v.preload = 'auto';
       v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true');
-      v.src = src;
       box.append(v);
       return v;
     });
-    // A still frame is visible straight away, so the hero is never an empty black box
-    // (slow network, or phones in power-saving mode that refuse to autoplay video).
+    const load = (i) => { if (!vids[i].getAttribute('src')) vids[i].src = srcs[i]; };
+    const unload = (i) => { const v = vids[i]; v.pause(); if (v.getAttribute('src')) { v.removeAttribute('src'); v.load(); } };
+    // a still frame is visible straight away, so the hero is never an empty black box
     const poster = tall ? S.video.posterTall : S.video.posterWide;
-    if (poster) { vids[0].poster = poster; vids[0].classList.add('is-active'); }
+    if (poster) vids[0].poster = poster;
+    vids[0].classList.add('is-active');
+    load(0);
 
-    const canPlay = (v) => v.readyState >= 3;
-    const whenReady = (v, fn) => (canPlay(v) ? fn() : v.addEventListener('canplay', fn, { once: true }));
-    const warm = (v) => { if (v.preload !== 'auto') { v.preload = 'auto'; v.load(); } };
-
-    if (reduce) { whenReady(vids[0], () => vids[0].classList.add('is-active')); return; }
+    if (reduce) return; // poster / first frame only, no motion
 
     let cur = 0;
     let onScreen = true;
+    let busy = false;
     const SEG = 8; // seconds per shot
-    const show = (n) => {
-      vids.forEach((x, k) => x.classList.toggle('is-active', k === n));
-      // after the crossfade, stop the old shot and rewind it quietly, off screen
-      setTimeout(() => vids.forEach((x, k) => { if (k !== n) { x.pause(); try { x.currentTime = 0; } catch (_) {} } }), 2600);
-    };
-    const start = () => vids[cur].play().catch(() => {});
+    const play = (v) => { const p = v.play(); return p && p.catch ? p : Promise.resolve(); };
+    // resolves when the video is actually showing moving frames (or rejects after a timeout)
+    const playing = (v, ms = 8000) => new Promise((res, rej) => {
+      if (!v.paused && v.readyState >= 3) return res();
+      const ok = () => { clearTimeout(tm); v.removeEventListener('playing', ok); res(); };
+      const tm = setTimeout(() => { v.removeEventListener('playing', ok); rej(new Error('timeout')); }, ms);
+      v.addEventListener('playing', ok);
+    });
+    const start = () => { load(cur); play(vids[cur]).catch(() => {}); };
     start();
-    whenReady(vids[0], () => { show(0); if (vids[1]) warm(vids[1]); });
-    // if autoplay was blocked, start on the first touch / click anywhere
+
+    // autoplay blocked (power-saving mode): start on the first touch / click anywhere
     const kick = () => { if (onScreen && vids[cur].paused) start(); };
     ['touchstart', 'pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, kick, { once: true, passive: true }));
-    // stop decoding while the hero is scrolled out of view (saves battery and keeps scrolling smooth)
+
+    // pause while scrolled out of view or while the tab is in the background
     if ('IntersectionObserver' in window) {
       new IntersectionObserver(([e]) => {
         onScreen = e.isIntersecting;
-        if (onScreen) start(); else vids.forEach((x) => x.pause());
+        if (onScreen) start(); else vids[cur].pause();
       }).observe(box);
     }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) vids[cur].pause(); else if (onScreen) start(); });
+
     if (vids.length < 2) return;
     setInterval(() => {
-      if (!onScreen || document.hidden) return;
+      if (!onScreen || document.hidden || busy) return;
+      const prev = cur;
       const nxt = (cur + 1) % vids.length;
       const v = vids[nxt];
-      warm(v);
-      if (!canPlay(v)) return; // not buffered yet: keep the current shot a little longer
-      v.play().then(() => { cur = nxt; show(cur); warm(vids[(cur + 1) % vids.length]); }).catch(() => {});
+      busy = true;
+      load(nxt);
+      try { v.currentTime = 0; } catch (_) {}
+      play(v)
+        .then(() => playing(v))
+        .then(() => {
+          cur = nxt;
+          vids.forEach((x, k) => x.classList.toggle('is-active', k === cur));
+          setTimeout(() => { unload(prev); busy = false; }, 2600); // after the crossfade
+        })
+        .catch(() => { unload(nxt); busy = false; }); // could not start: keep the current shot
     }, SEG * 1000);
   }
 
@@ -537,15 +556,21 @@
     });
     const vids = $$('video[data-src]');
     if (!vids.length) return;
-    // normal speed: slowed-down playback of 25–50 fps clips looks choppy
+    // normal speed: slowed-down playback of 25–50 fps clips looks choppy.
+    // On phones: a lighter file (data-src-sm) and the video is unloaded when it leaves the
+    // screen, so only the videos you are looking at use the phone's few video decoders.
+    const small = window.matchMedia('(max-width: 768px), (hover: none)').matches;
     const io = new IntersectionObserver((entries) => {
       entries.forEach(({ isIntersecting, target: v }) => {
         if (isIntersecting) {
-          if (!v.src) { v.preload = 'auto'; v.src = v.dataset.src; }
+          if (!v.getAttribute('src')) { v.preload = 'auto'; v.src = (small && v.dataset.srcSm) || v.dataset.src; }
           if (!reduce) v.play().catch(() => {});
-        } else v.pause();
+        } else {
+          v.pause();
+          if (small && v.getAttribute('src')) { v.removeAttribute('src'); v.load(); }
+        }
       });
-    }, { rootMargin: '300px 0px' });
+    }, { rootMargin: '200px 0px' });
     vids.forEach((v) => {
       v.muted = true;
       v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
@@ -643,6 +668,9 @@
   function animate() {
     if (!hasGSAP || reduce) return;
     gsap.registerPlugin(ScrollTrigger);
+    // phones: the address bar showing/hiding must not re-measure the whole page (that causes jumps)
+    const touch = window.matchMedia('(hover: none)').matches;
+    ScrollTrigger.config({ ignoreMobileResize: true });
 
     // page enter: curtain lifts
     const curtain = $('.curtain');
@@ -691,7 +719,8 @@
       enter.from($$('.char', name), { yPercent: 110, opacity: 0, duration: 1.4, stagger: 0.045, ease: 'power4.out' }, curtain ? '-=0.6' : 0)
            .from('.hero-meta > *, .hero-rec', { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: 'power2.out' }, '-=0.9');
       gsap.to('.hero-inner', { yPercent: -18, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
-      gsap.to('.hero-media', { scale: 1.12, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
+      // zooming a playing, filtered video while scrolling is too heavy for phones
+      if (!touch) gsap.to('.hero-media', { scale: 1.12, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
     }
 
     // page hero titles
@@ -744,7 +773,7 @@
     $$('.masonry').forEach((m) => {
       ScrollTrigger.batch($$('.tile', m), {
         start: 'top 92%',
-        onEnter: (b) => gsap.fromTo(b, { opacity: 0, y: 40, filter: 'blur(6px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 1.1, stagger: 0.08, ease: 'power3.out', overwrite: true })
+        onEnter: (b) => gsap.fromTo(b, touch ? { opacity: 0, y: 30 } : { opacity: 0, y: 40, filter: 'blur(6px)' }, touch ? { opacity: 1, y: 0, duration: 0.9, stagger: 0.06, ease: 'power3.out', overwrite: true } : { opacity: 1, y: 0, filter: 'blur(0px)', duration: 1.1, stagger: 0.08, ease: 'power3.out', overwrite: true })
       });
       gsap.set($$('.tile', m), { opacity: 0 });
     });
