@@ -492,10 +492,16 @@
     });
     const load = (i) => { if (!vids[i].getAttribute('src')) vids[i].src = srcs[i]; };
     const unload = (i) => { const v = vids[i]; v.pause(); if (v.getAttribute('src')) { v.removeAttribute('src'); v.load(); } };
-    // a still frame is visible straight away, so the hero is never an empty black box
+    // a still frame sits underneath from the start, so the hero is never an empty black box,
+    // and the first video fades in over it only once it is really playing (no hard jump)
     const poster = tall ? S.video.posterTall : S.video.posterWide;
-    if (poster) vids[0].poster = poster;
-    vids[0].classList.add('is-active');
+    if (poster) {
+      const still = document.createElement('img');
+      still.className = 'hero-still'; still.alt = ''; still.setAttribute('aria-hidden', 'true');
+      still.decoding = 'async'; still.fetchPriority = 'high'; still.src = poster;
+      box.prepend(still);
+    }
+    vids[0].addEventListener('playing', () => vids[0].classList.add('is-active'), { once: true });
     load(0);
 
     if (reduce) return; // poster / first frame only, no motion
@@ -515,9 +521,10 @@
     const start = () => { load(cur); play(vids[cur]).catch(() => {}); };
     start();
 
-    // autoplay blocked (power-saving mode): start on the first touch / click anywhere
+    // autoplay blocked (phones in power-saving mode): start on the next real tap / click.
+    // Only touchend / click / keydown count as a user gesture for play(), touchstart does not.
     const kick = () => { if (onScreen && vids[cur].paused) start(); };
-    ['touchstart', 'pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, kick, { once: true, passive: true }));
+    ['touchend', 'click', 'keydown'].forEach((ev) => window.addEventListener(ev, kick, { passive: true }));
 
     // pause while scrolled out of view or while the tab is in the background
     if ('IntersectionObserver' in window) {
@@ -571,12 +578,26 @@
         }
       });
     }, { rootMargin: '200px 0px' });
+    const inView = new Set();
+    const io2 = new IntersectionObserver((entries) => entries.forEach((e) => (e.isIntersecting ? inView.add(e.target) : inView.delete(e.target))));
     vids.forEach((v) => {
-      v.muted = true;
-      v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+      v.muted = true; v.defaultMuted = true; v.playsInline = true;
+      v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
       v.addEventListener('loadedmetadata', () => { if (reduce) v.currentTime = 1.5; });
+      // if play() was called before the data arrived, make sure it actually starts
+      v.addEventListener('canplay', () => { if (inView.has(v) && v.paused && !reduce) v.play().catch(() => {}); });
       io.observe(v);
+      io2.observe(v);
     });
+    // phones in power-saving mode only allow video to start from a real tap: on every tap,
+    // start the videos that are on screen and are not playing yet
+    if (!reduce) {
+      const kick = () => inView.forEach((v) => {
+        if (!v.getAttribute('src')) v.src = (small && v.dataset.srcSm) || v.dataset.src;
+        if (v.paused) v.play().catch(() => {});
+      });
+      ['touchend', 'click', 'keydown'].forEach((ev) => window.addEventListener(ev, kick, { passive: true }));
+    }
   }
 
   /* ---------- robust lazy images: promote to eager when near the viewport ---------- */
@@ -759,13 +780,16 @@
         gsap.from(fr, { opacity: 0, y: 30, duration: 1.4, ease: 'power3.out', scrollTrigger: { trigger: fr, start: 'top 88%' } });
         return;
       }
+      // phones (iOS Safari especially) can render a <video> blank when it is transformed or
+      // clipped while it also has a CSS filter, so on touch screens it only fades in
+      if (touch) { gsap.from(fr, { opacity: 0, y: 30, duration: 1.2, ease: 'power3.out', scrollTrigger: { trigger: fr, start: 'top 88%' } }); return; }
       gsap.fromTo(fr, { clipPath: 'inset(12% 8% 12% 8%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.6, ease: 'power4.out', scrollTrigger: { trigger: fr, start: 'top 85%' } });
       gsap.fromTo(vid, { scale: 1.18, yPercent: -4 }, { scale: 1.02, yPercent: 4, ease: 'none', scrollTrigger: { trigger: fr, start: 'top bottom', end: 'bottom top', scrub: true } });
     });
 
     // video inserts: widen from a letterbox
     $$('[data-insert]').forEach((fr) => {
-      gsap.fromTo(fr, { clipPath: 'inset(18% 10% 18% 10%)' }, { clipPath: 'inset(0% 0% 0% 0%)', ease: 'none', scrollTrigger: { trigger: fr, start: 'top 95%', end: 'top 35%', scrub: true } });
+      if (!touch) gsap.fromTo(fr, { clipPath: 'inset(18% 10% 18% 10%)' }, { clipPath: 'inset(0% 0% 0% 0%)', ease: 'none', scrollTrigger: { trigger: fr, start: 'top 95%', end: 'top 35%', scrub: true } });
       gsap.from($('.label', fr), { opacity: 0, y: 16, duration: 1, scrollTrigger: { trigger: fr, start: 'top 55%' } });
     });
 
@@ -801,7 +825,7 @@
     if (q) {
       const words = splitWords(q);
       gsap.from(words, { yPercent: 110, opacity: 0, duration: 1.3, stagger: 0.05, ease: 'power4.out', scrollTrigger: { trigger: q, start: 'top 75%' } });
-      gsap.fromTo('.quote video', { scale: 1.2 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: '.quote', start: 'top bottom', end: 'bottom top', scrub: true } });
+      if (!touch) gsap.fromTo('.quote video', { scale: 1.2 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: '.quote', start: 'top bottom', end: 'bottom top', scrub: true } });
     }
 
     // home portfolio: calm grid, each couple fades in softly as it comes into view
@@ -846,5 +870,6 @@
   initFilters();
   initHoverPreview();
   headerBehaviour();
-  animate();
+  const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  Promise.race([fontsReady, new Promise((r) => setTimeout(r, 1800))]).then(animate);
 })();
