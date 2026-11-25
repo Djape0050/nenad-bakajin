@@ -155,6 +155,8 @@ p.eyebrow::before { content: ""; display: inline-block; vertical-align: middle; 
   opacity: 0; transition: opacity var(--dur-2) var(--ease-out);
 }
 .site-header.is-solid::before { opacity: 1; }
+/* over dark sections (hero, photos, footer) the scrolled header is dark glass, so light text stays readable */
+.site-header.is-light::before { background: rgba(15, 14, 13, .55); border-bottom-color: rgba(255, 255, 255, .08); }
 .menu-open .site-header::before { opacity: 0; }
 
 .logo { display: inline-flex; align-items: center; gap: 14px; min-height: 44px; }

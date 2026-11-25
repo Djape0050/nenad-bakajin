@@ -752,16 +752,23 @@
     const header = $('.site-header');
     const darkZones = $$('[data-dark]');
     let last = 0, ticking = false;
+    const TOLERANCE = 8; // px: small finger jitters must not make the header flicker in and out
     const update = () => {
       ticking = false;
       if (document.body.classList.contains('menu-open')) return;
-      const y = window.scrollY;
+      const y = Math.max(0, window.scrollY);
       const probe = 40;
       const overDark = darkZones.some((z) => { const r = z.getBoundingClientRect(); return r.top <= probe && r.bottom >= probe; });
       header.classList.toggle('is-light', overDark);
-      header.classList.toggle('is-solid', !overDark && y > 80);
-      header.classList.toggle('is-hidden', y > last && y > 400);
-      last = y;
+      // once the page moves, the header gets a background (dark over dark sections, white over white),
+      // so headings scrolling underneath never collide with the logo and menu
+      header.classList.toggle('is-solid', y > 40);
+      const delta = y - last;
+      if (Math.abs(delta) > TOLERANCE) {
+        header.classList.toggle('is-hidden', delta > 0 && y > 400);
+        last = y;
+      }
+      if (y < 400) header.classList.remove('is-hidden');
     };
     const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
     if (lenis) lenis.on('scroll', onScroll); else window.addEventListener('scroll', onScroll, { passive: true });
@@ -804,7 +811,11 @@
         .map((word) => `<span class="word" aria-hidden="true">${[...word].map((ch) => `<span class="char">${ch}</span>`).join('')}</span>`).join(' ');
       enter.from($$('.char', name), { yPercent: 110, duration: DUR.slow, stagger: STAGGER.letters }, afterCurtain)
            .from('.hero-meta > *, .hero-rec', { opacity: 0, y: RISE / 2, duration: DUR.base, stagger: STAGGER.items }, `-=${DUR.base}`);
-      gsap.to('.hero-inner', { yPercent: -18, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
+      // scrolling away: the name drifts a little slower than the page (so it never travels up into
+      // the header) and is fully faded by the middle of the hero
+      const heroOut = { trigger: '.hero', start: 'top top', end: '50% top', scrub: true };
+      gsap.fromTo('.hero-inner', { y: 0, opacity: 1 }, { y: () => window.innerHeight * 0.15, opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { ...heroOut, invalidateOnRefresh: true } });
+      gsap.fromTo('.hero-rec', { opacity: 1 }, { opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { trigger: '.hero', start: 'top top', end: '20% top', scrub: true } });
       if (!touch) gsap.to('.hero-media', { scale: 1.12, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
     }
 
@@ -813,6 +824,8 @@
       enter.from(splitWords(h), { yPercent: 110, duration: DUR.slow, stagger: STAGGER.words }, afterCurtain);
       const hero = h.closest('.page-hero');
       if (!touch) gsap.to($('.media', hero), { yPercent: 12, scale: 1.06, ease: 'none', scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } });
+      // title and label fade out while scrolling away, same as on the home page
+      gsap.fromTo($('.inner', hero), { y: 0, opacity: 1 }, { y: () => window.innerHeight * 0.1, opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { trigger: hero, start: 'top top', end: '55% top', scrub: true, invalidateOnRefresh: true } });
     });
     $$('.page-hero [data-hero-fade]').forEach((el) => enter.from(el, { opacity: 0, y: RISE / 2, duration: DUR.base }, `-=${DUR.base}`));
 
@@ -820,7 +833,8 @@
     $$('[data-scrub-words]').forEach((el) => {
       const words = splitWords(el);
       gsap.set(words, { opacity: 0.14 });
-      gsap.to(words, { opacity: 1, stagger: 0.1, ease: 'none', scrollTrigger: { trigger: el, start: 'top 80%', end: 'bottom 45%', scrub: true } });
+      // fully lit by the time the line reaches the middle of the screen
+      gsap.to(words, { opacity: 1, stagger: 0.1, ease: 'none', scrollTrigger: { trigger: el, start: 'top 90%', end: 'bottom 60%', scrub: true } });
     });
 
     // headings: words rise
