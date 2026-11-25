@@ -123,6 +123,7 @@ window.UI = {
     'err.first': 'Unesite ime.', 'err.last': 'Unesite prezime.', 'err.email': 'Unesite ispravnu imejl-adresu.', 'err.details': 'Napišite nekoliko reči o venčanju.',
     'lb.close': 'Zatvori', 'lb.prev': 'Prethodna', 'lb.next': 'Sledeća', 'lb.label': 'Pregled fotografije', 'lb.open': 'Otvori fotografiju',
     'photo': 'fotografija', 'and': 'i',
+    'a11y.skip': 'Preskoči na sadržaj', 'a11y.home': 'Nenad Bakajin, početna', 'a11y.nav': 'Glavna navigacija',
     'title.ponuda': 'Ponuda', 'title.blog': 'Blog'
   },
   en: {
@@ -138,6 +139,8 @@ window.UI = {
     'err.first': 'Please enter your first name.', 'err.last': 'Please enter your last name.', 'err.email': 'Please enter a valid email address.', 'err.details': 'Please write a few words about your wedding.',
     'lb.close': 'Close', 'lb.prev': 'Previous', 'lb.next': 'Next', 'lb.label': 'Photo viewer', 'lb.open': 'Open photo',
     'photo': 'photo', 'and': 'and',
+    'a11y.skip': 'Skip to content', 'a11y.home': 'Nenad Bakajin, home', 'a11y.nav': 'Main navigation',
+    'a11y.filters': 'Gallery filter', 'a11y.intro': 'Intro', 'a11y.quote': 'Quote',
     'title.ponuda': 'Packages', 'title.blog': 'Journal',
 
     /* static page text (data-i18n attributes in the HTML) */

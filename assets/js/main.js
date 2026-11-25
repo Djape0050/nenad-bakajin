@@ -1,23 +1,52 @@
 /* ==========================================================================
    Nenad Bakajin — interactions
    GSAP 3 + ScrollTrigger + Lenis smooth scroll
+
+   Sections: config · language · chrome (header, menu, footer) · page renderers ·
+   form · scroll lock · lightbox · menu · videos · lazy images · text split ·
+   scroll · header · animations · boot
    ========================================================================== */
 (() => {
+  'use strict';
+
+  /* ---------- config ---------- */
   const IMG = window.IMG;
   const page = document.body.dataset.page || '';
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const mq = (q) => window.matchMedia(q).matches;
+  const reduce = mq('(prefers-reduced-motion: reduce)');
+  const touch = mq('(hover: none)');
   const hasGSAP = typeof window.gsap !== 'undefined';
   document.documentElement.classList.remove('no-js');
+
+  /* Motion system — mirrors the CSS tokens in style.css (section 1).
+     EASE    = cubic-bezier(.22, 1, .36, 1)  → GSAP power4.out   (things appearing / responding)
+     EASE_IO = cubic-bezier(.76, 0, .24, 1)  → GSAP power3.inOut (things covering the screen)   */
+  const EASE = 'power4.out';
+  const EASE_IO = 'power3.inOut';
+  const DUR = { fast: 0.45, base: 0.8, slow: 1.2 };   // = --dur-2 / --dur-3 / --dur-4
+  const STAGGER = { letters: 0.04, words: 0.06, items: 0.08 };
+  const RISE = 24;                                     // px every reveal travels
+  const START = 'top 88%';                             // when scroll reveals start
+  const XFADE = 1600;                                  // ms, = --dur-video
 
   const $ = (s, c = document) => c.querySelector(s);
   const $$ = (s, c = document) => [...c.querySelectorAll(s)];
   const params = new URLSearchParams(location.search);
+  const pad = (n) => String(n).padStart(2, '0');
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const store = {
+    get(k, area = localStorage) { try { return area.getItem(k); } catch (_) { return null; } },
+    set(k, v, area = localStorage) { try { area.setItem(k, v); } catch (_) {} }
+  };
+
+  // one listener set for "the user just tapped / clicked / pressed a key"
+  // (the only moments phones in power-saving mode allow video to start)
+  const gestureHandlers = new Set();
+  const onGesture = (fn) => gestureHandlers.add(fn);
+  ['touchend', 'click', 'keydown'].forEach((ev) =>
+    window.addEventListener(ev, () => gestureHandlers.forEach((fn) => fn()), { passive: true }));
 
   /* ---------- language: Serbian (default) / English ---------- */
-  const store = {
-    get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
-    set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
-  };
   const LANG = (() => {
     const q = params.get('lang');
     if (q === 'sr' || q === 'en') { store.set('nb-lang', q); return q; }
@@ -40,11 +69,12 @@
     };
   })();
 
-  // static text marked with data-i18n in the HTML (Serbian is already in the markup)
+  // static text marked in the HTML (Serbian is already in the markup)
   function applyStaticText() {
     if (LANG === 'sr') return;
     $$('[data-i18n]').forEach((el) => { const v = UI.en[el.dataset.i18n]; if (v != null) el.innerHTML = v; });
     $$('[data-i18n-alt]').forEach((el) => { const v = UI.en[el.dataset.i18nAlt]; if (v != null) el.alt = v; });
+    $$('[data-i18n-aria]').forEach((el) => { const v = UI.en[el.dataset.i18nAria]; if (v != null) el.setAttribute('aria-label', v); });
     const doc = UI.en['doc.' + page];
     if (doc) document.title = doc;
   }
@@ -54,51 +84,63 @@
     u.searchParams.set('lang', code);
     return u.pathname.split('/').pop() + u.search + u.hash;
   }
-  const LANG_SWITCH = `<div class="lang-switch" role="group" aria-label="${t('lang.label')}">
-      <a href="${langLink('sr')}" lang="sr-Latn" data-lang="sr"${LANG === 'sr' ? ' aria-current="true"' : ''}>SR</a><span aria-hidden="true">/</span><a href="${langLink('en')}" lang="en" data-lang="en"${LANG === 'en' ? ' aria-current="true"' : ''}>EN</a>
+  const langSwitch = (focusable = true) => {
+    const ti = focusable ? '' : ' tabindex="-1"';
+    return `<div class="lang-switch" role="group" aria-label="${t('lang.label')}">
+      <a href="${langLink('sr')}" lang="sr-Latn"${ti}${LANG === 'sr' ? ' aria-current="true"' : ''}>SR</a><span aria-hidden="true">/</span><a href="${langLink('en')}" lang="en"${ti}${LANG === 'en' ? ' aria-current="true"' : ''}>EN</a>
     </div>`;
-  const pad = (n) => String(n).padStart(2, '0');
-  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  };
 
   /* ---------- shared partials ---------- */
-  const LOGO = `<svg viewBox="0 0 28 44" fill="none" aria-hidden="true"><path d="M2 42V2l12 40V2M14 2h5.5a5.5 5.5 0 0 1 0 11H14m0 0h6.5a7 7 0 0 1 0 14H14m0 0v15" stroke-width="1.3" stroke-linecap="square"/></svg>`;
-  const ARROW = `<svg class="arrow" viewBox="0 0 22 8" fill="none" aria-hidden="true"><path d="M0 4h21m0 0L17.5 .5M21 4l-3.5 3.5" stroke="currentColor"/></svg>`;
-  const IG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/></svg>`;
+  const LOGO = `<svg viewBox="0 0 28 44" fill="none" aria-hidden="true" focusable="false"><path d="M2 42V2l12 40V2M14 2h5.5a5.5 5.5 0 0 1 0 11H14m0 0h6.5a7 7 0 0 1 0 14H14m0 0v15" stroke-width="1.3" stroke-linecap="square"/></svg>`;
+  const ARROW = `<svg class="arrow" viewBox="0 0 22 8" fill="none" aria-hidden="true" focusable="false"><path d="M0 4h21m0 0L17.5 .5M21 4l-3.5 3.5" stroke="currentColor"/></svg>`;
+  const IG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/></svg>`;
 
   const NAV = ['about', 'portfolio', 'ponuda', 'blog', 'kontakt'].map((key) => ({
     key, label: t('nav.' + key), href: key === 'about' ? 'index.html#statement-sec' : key + '.html'
   }));
-  const activeKey = { home: '', portfolio: 'portfolio', gallery: 'portfolio', ponuda: 'ponuda', paket: 'ponuda', blog: 'blog', post: 'blog', kontakt: 'kontakt' }[page];
+  const activeKey = { portfolio: 'portfolio', gallery: 'portfolio', ponuda: 'ponuda', paket: 'ponuda', blog: 'blog', post: 'blog', kontakt: 'kontakt' }[page] || '';
+  const current = (key) => (key === activeKey ? ' aria-current="page"' : '');
 
+  /* ---------- chrome: skip link, header, menu, footer ---------- */
   function injectChrome() {
+    const main = $('main');
+    if (main) { main.id = 'main'; main.setAttribute('tabindex', '-1'); }
+
+    const skip = document.createElement('a');
+    skip.className = 'skip-link';
+    skip.href = '#main';
+    skip.textContent = t('a11y.skip');
+
     const header = document.createElement('header');
     header.className = 'site-header';
     if (document.body.dataset.header === 'light') header.classList.add('is-light');
     header.innerHTML = `
-      <a class="logo" href="index.html" aria-label="Nenad Bakajin, početna">${LOGO}<span class="logo-word">Nenad Bakajin</span></a>
-      <nav class="nav-inline" aria-label="Glavna navigacija">
-        ${NAV.filter((n) => n.key !== 'kontakt' && n.key !== 'about').map((n) => `<a href="${n.href}"${n.key === activeKey ? ' aria-current="page"' : ''}>${n.label}</a>`).join('')}
-        <a class="nav-cta" href="kontakt.html"${activeKey === 'kontakt' ? ' aria-current="page"' : ''}>${t('nav.cta')}</a>
+      <a class="logo" href="index.html" aria-label="${t('a11y.home')}">${LOGO}<span class="logo-word" aria-hidden="true">Nenad Bakajin</span></a>
+      <nav class="nav-inline" aria-label="${t('a11y.nav')}">
+        ${NAV.filter((n) => n.key !== 'kontakt' && n.key !== 'about').map((n) => `<a href="${n.href}"${current(n.key)}>${n.label}</a>`).join('')}
+        <a class="nav-cta" href="kontakt.html"${current('kontakt')}>${t('nav.cta')}</a>
       </nav>
       <div class="header-right">
-        ${LANG_SWITCH}
+        ${langSwitch()}
         <button class="menu-btn" type="button" aria-expanded="false" aria-controls="menu"><span class="menu-label">${t('menu.open')}</span><span class="bars" aria-hidden="true"></span></button>
       </div>`;
-    document.body.prepend(header);
 
     const menu = document.createElement('div');
     menu.className = 'menu';
     menu.id = 'menu';
-    menu.setAttribute('aria-hidden', 'true');
+    menu.setAttribute('role', 'dialog');
+    menu.setAttribute('aria-modal', 'true');
+    menu.setAttribute('aria-label', t('menu.open'));
+    menu.inert = true;
     menu.innerHTML = `
-      <nav aria-label="${t('menu.open')}"><ul class="menu-links">
-        ${NAV.filter((n) => n.key !== 'about').map((n, i) => `<li><a href="${n.href}" tabindex="-1"${n.key === activeKey ? ' aria-current="page"' : ''}><span class="num">${pad(i + 1)}</span><span class="label"><span>${n.label}</span></span></a></li>`).join('')}
+      <nav aria-label="${t('a11y.nav')}"><ul class="menu-links">
+        ${NAV.filter((n) => n.key !== 'about').map((n, i) => `<li><a href="${n.href}"${current(n.key)}><span class="num" aria-hidden="true">${pad(i + 1)}</span><span class="label"><span>${n.label}</span></span></a></li>`).join('')}
       </ul></nav>
       <div class="menu-bottom">
-        <a class="btn menu-cta" href="kontakt.html" tabindex="-1">${t('nav.cta')} ${ARROW}</a>
-        <div class="menu-foot">${LANG_SWITCH.replace(/<a /g, '<a tabindex="-1" ')}<a class="menu-ig" href="${S.instagram}" target="_blank" rel="noopener" tabindex="-1">${IG} Instagram</a></div>
+        <a class="btn menu-cta" href="kontakt.html">${t('nav.cta')} ${ARROW}</a>
+        <div class="menu-foot">${langSwitch()}<a href="${S.instagram}" target="_blank" rel="noopener">${IG} Instagram</a></div>
       </div>`;
-    header.after(menu);
 
     const footer = document.createElement('footer');
     footer.className = 'site-footer';
@@ -110,12 +152,12 @@
             <p class="eyebrow light">${t('footer.eyebrow')}</p>
             <p class="h2 mt-m"><a href="kontakt.html">${t('footer.cta')}</a></p>
           </div>
-          <div class="footer-col">
-            <h3 class="eyebrow light">${t('footer.pages')}</h3>
+          <nav class="footer-col" aria-label="${t('footer.pages')}">
+            <h2 class="eyebrow light">${t('footer.pages')}</h2>
             <ul>${NAV.map((n) => `<li><a href="${n.href}">${n.label}</a></li>`).join('')}</ul>
-          </div>
+          </nav>
           <div class="footer-col">
-            <h3 class="eyebrow light">${t('footer.follow')}</h3>
+            <h2 class="eyebrow light">${t('footer.follow')}</h2>
             <ul><li><a href="${S.instagram}" target="_blank" rel="noopener">${IG}&nbsp;&nbsp;Instagram</a></li></ul>
           </div>
         </div>
@@ -125,13 +167,16 @@
           <a href="#top" data-top>${t('footer.top')}</a>
         </div>
       </div>`;
+
+    document.body.prepend(skip, header, menu);
     document.body.append(footer);
 
-    const grain = document.createElement('div');
-    grain.className = 'grain';
-    grain.setAttribute('aria-hidden', 'true');
-    document.body.append(grain);
-
+    if (!touch) {
+      const grain = document.createElement('div');
+      grain.className = 'grain';
+      grain.setAttribute('aria-hidden', 'true');
+      document.body.append(grain);
+    }
     if (!reduce && hasGSAP) {
       const curtain = document.createElement('div');
       curtain.className = 'curtain';
@@ -142,14 +187,13 @@
   }
 
   /* ---------- page renderers ---------- */
-  // Photos are shown whole, in their original proportions: no crop, no filter.
   const photo = (id, w, alt, extra = '') =>
     `<img src="${IMG(id, w)}" alt="${esc(alt)}" loading="lazy" decoding="async" ${extra}>`;
 
   function tiles(list, label) {
     return list.map((id, i) => `<button class="tile" type="button" data-full="${IMG(id, 2000)}" data-cap="${esc(label)} · ${pad(i + 1)}" aria-label="${t('lb.open')} ${i + 1}: ${esc(label)}">
         ${photo(id, 1000, `${label}, ${t('photo')} ${i + 1}`)}
-        <span class="tile-cap">${esc(label)} · ${pad(i + 1)}</span></button>`).join('');
+        <span class="tile-cap" aria-hidden="true">${esc(label)} · ${pad(i + 1)}</span></button>`).join('');
   }
 
   const CAT_LABEL = { portraits: 'Portraits', details: 'Details', snapshots: 'Snapshots' };
@@ -158,59 +202,31 @@
       const label = CAT_LABEL[cat];
       return `<button class="tile" type="button" data-cat="${cat}" data-full="${IMG(id, 2000)}" data-cap="${label}" aria-label="${t('lb.open')}: ${label}">
         ${photo(id, 1000, `${label}, ${t('photo')} ${i + 1}`)}
-        <span class="tile-cap">${label}</span></button>`;
+        <span class="tile-cap" aria-hidden="true">${label}</span></button>`;
     }).join('');
-  }
-
-  /* gallery filters */
-  function initFilters() {
-    $$('.filters').forEach((bar) => {
-      const grid = $('.masonry', bar.closest('.section'));
-      if (!grid) return;
-      const btns = $$('button', bar);
-      btns.forEach((b) => b.addEventListener('click', () => {
-        const f = b.dataset.filter;
-        btns.forEach((x) => x.setAttribute('aria-selected', String(x === b)));
-        const all = $$('.tile', grid);
-        const apply = () => {
-          all.forEach((t) => { t.hidden = !(f === 'all' || t.dataset.cat === f); });
-          if (window.ScrollTrigger) ScrollTrigger.refresh();
-          const shown = all.filter((t) => !t.hidden);
-          if (hasGSAP && !reduce) gsap.fromTo(shown, { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'power3.out', overwrite: true });
-          else shown.forEach((t) => (t.style.opacity = 1));
-          shown.forEach((t) => { const im = $('img', t); if (im) im.loading = 'eager'; });
-        };
-        if (hasGSAP && !reduce) gsap.to(grid, { opacity: 0, duration: 0.3, onComplete: () => { apply(); gsap.to(grid, { opacity: 1, duration: 0.3 }); } });
-        else apply();
-      }));
-    });
   }
 
   const render = {
     home() {
       const a = S.about;
       $('#hero-intro').textContent = a.heroIntro;
-      // last word of the statement in gold italic
-      $('#statement').innerHTML = esc(a.lead).replace(/(\S+)$/, '<em>$1</em>');
+      $('#statement').innerHTML = esc(a.lead).replace(/(\S+)$/, '<em>$1</em>'); // last word in gold italic
       $('#about-text').innerHTML = a.paragraphs.map((p) => `<p>${p}</p>`).join('');
       $('#motto').innerHTML = a.motto.map((m) => `<span>${m}</span>`).join('');
       $('#about-bg').innerHTML = a.background.map((p) => `<p>${p}</p>`).join('');
       $('#quote-text').textContent = a.quote.text;
       $('#quote-author').textContent = a.quote.author;
 
-      const pick = S.couples.map((c) => ({ id: c.images[0], c }));
-      $('#strip-track').innerHTML = pick.map(({ id, c }, i) => `
+      $('#strip-track').innerHTML = S.couples.map((c, i) => `
         <div class="strip-item"><a href="galerija.html?c=${c.slug}">
-          <div class="frame">${photo(id, 1000, `${c.a} ${t('and')} ${c.b}`)}</div>
-          <div class="strip-cap"><span class="n">(${pad(i + 1)})</span><span class="t">${c.a} <em>&amp;</em> ${c.b}</span></div></a></div>`).join('');
+          <div class="frame">${photo(c.images[0], 1000, `${c.a} ${t('and')} ${c.b}`)}</div>
+          <div class="strip-cap"><span class="n" aria-hidden="true">(${pad(i + 1)})</span><span class="t">${c.a} <em>&amp;</em> ${c.b}</span></div></a></div>`).join('');
 
-      // package tiers (inspired by dia.rs cards)
-      const tiers = ['Basic', 'Editorial', 'Premium'];
-      $('#tier-grid').innerHTML = tiers.map((tier, i) => {
+      $('#tier-grid').innerHTML = ['Basic', 'Editorial', 'Premium'].map((tier, i) => {
         const foto = S.packages.find((p) => p.group === 'foto' && p.tier === tier);
         const film = S.packages.find((p) => p.group === 'film' && p.tier === tier);
         return `<article class="tier${i === 1 ? ' is-featured' : ''}">
-          <header class="tier-head"><span class="num">${pad(i + 1)}</span><h3>${tier}</h3></header>
+          <header class="tier-head"><span class="num" aria-hidden="true">${pad(i + 1)}</span><h3>${tier}</h3></header>
           <div class="tier-body">
             <a class="tier-row" href="paket.html?p=${foto.slug}">
               <span class="eyebrow">${t('tier.photo')}</span><span class="tier-title">${foto.title}</span><span class="tier-short">${foto.short}</span></a>
@@ -226,14 +242,14 @@
       $('#couple-count').textContent = `${pad(S.couples.length)} ${t('couple.galleries')}`;
       $('#couple-grid').innerHTML = S.couples.map((c, i) => `
         <article class="couple">
-          <a href="galerija.html?c=${c.slug}" aria-label="${t('couple.label')}: ${c.a} ${t('and')} ${c.b}">
+          <a href="galerija.html?c=${c.slug}">
             <div class="couple-media">
               ${photo(c.images[0], 1200, `${c.a} ${t('and')} ${c.b}`, 'class="main"')}
               ${photo(c.images[1], 1200, '', 'class="alt" aria-hidden="true"')}
-              <span class="couple-cta">${t('couple.cta')}</span>
+              <span class="couple-cta" aria-hidden="true">${t('couple.cta')}</span>
             </div>
             <div class="couple-info">
-              <span class="num">${pad(i + 1)}</span>
+              <span class="num" aria-hidden="true">${pad(i + 1)}</span>
               <h3 class="couple-name">${c.a} <em>&amp;</em> ${c.b}</h3>
               <span class="couple-meta">${c.images.length} ${t('couple.frames')}</span>
             </div>
@@ -260,15 +276,16 @@
     },
 
     ponuda() {
+      // the whole card is clickable, but only the visible "Details" link is in the tab order / read out
       const card = (p, i) => `
         <article class="pk-card">
-          <a class="cover" href="paket.html?p=${p.slug}" aria-label="${esc(p.title)}, ${t('card.more').toLowerCase()}"></a>
+          <a class="cover" href="paket.html?p=${p.slug}" tabindex="-1" aria-hidden="true"></a>
           <div class="frame natural">${photo(p.image, 1000, '')}</div>
           <div class="pk-body">
-            <div class="pk-tier"><span class="eyebrow">${p.tier}</span><span class="num">${pad(i + 1)}</span></div>
+            <div class="pk-tier"><span class="eyebrow">${p.tier}</span><span class="num" aria-hidden="true">${pad(i + 1)}</span></div>
             <h3 class="pk-name">${p.title}</h3>
             <p class="pk-short">${p.short}</p>
-            <a class="link-line" href="paket.html?p=${p.slug}">${t('card.more')}</a>
+            <a class="link-line" href="paket.html?p=${p.slug}" aria-label="${esc(p.title)}: ${t('card.more')}">${t('card.more')}</a>
           </div>
         </article>`;
       $('#pk-foto').innerHTML = S.packages.filter((p) => p.group === 'foto').map(card).join('');
@@ -287,7 +304,7 @@
       $('#p-intro').textContent = p.intro;
       $('#p-img').src = IMG(p.image, 1400);
       $('#p-img').alt = p.title;
-      $('#p-list').innerHTML = p.includes.map((t, i) => `<li><span class="num">${pad(i + 1)}</span><span>${t}</span></li>`).join('');
+      $('#p-list').innerHTML = p.includes.map((item, i) => `<li><span class="num" aria-hidden="true">${pad(i + 1)}</span><span>${item}</span></li>`).join('');
       $('#p-cta').href = `kontakt.html?paket=${p.slug}`;
       $('#p-prev').href = `paket.html?p=${prev.slug}`;
       $('#p-prev-name').textContent = prev.title;
@@ -299,7 +316,7 @@
       $('#posts').innerHTML = S.posts.map((p, i) => `
         <article class="post-card"><a href="post.html?p=${p.slug}">
           <div class="frame natural">${photo(p.image, 1200, p.title)}</div>
-          <div class="meta"><span class="eyebrow">${t('post.label')}</span><span class="num">${pad(i + 1)}</span></div>
+          <div class="meta"><span class="eyebrow">${t('post.label')}</span><span class="num" aria-hidden="true">${pad(i + 1)}</span></div>
           <h2>${p.title}</h2><p>${p.excerpt}</p><span class="link-line">${t('post.read')}</span></a></article>`).join('');
     },
 
@@ -311,7 +328,7 @@
       $('#post-title').textContent = p.title;
       $('#post-img').src = IMG(p.image, 2000);
       $('#post-img').alt = p.title;
-      $('#post-body').innerHTML = p.body.map((t) => `<p>${t}</p>`).join('');
+      $('#post-body').innerHTML = p.body.map((para) => `<p>${para}</p>`).join('');
       $('#post-next').href = `post.html?p=${next.slug}`;
       $('#post-next-name').textContent = next.title;
     },
@@ -321,20 +338,45 @@
       sel.innerHTML = `<option value="">${t('form.undecided')}</option>` +
         ['foto', 'film'].map((g) => `<optgroup label="${g === 'foto' ? t('form.photo') : t('form.film')}">${S.packages.filter((p) => p.group === g).map((p) => `<option value="${p.slug}">${p.title}</option>`).join('')}</optgroup>`).join('');
       const pre = params.get('paket');
-      if (pre) sel.value = pre;
+      if (pre && S.packages.some((p) => p.slug === pre)) sel.value = pre;
       initForm();
     }
   };
+
+  /* ---------- gallery filters (toggle buttons, aria-pressed) ---------- */
+  function initFilters() {
+    $$('.filters').forEach((bar) => {
+      const grid = $('.masonry', bar.closest('.section'));
+      if (!grid) return;
+      const btns = $$('button', bar);
+      btns.forEach((b) => b.addEventListener('click', () => {
+        if (b.getAttribute('aria-pressed') === 'true') return;
+        const f = b.dataset.filter;
+        btns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        const all = $$('.tile', grid);
+        const apply = () => {
+          all.forEach((tile) => { tile.hidden = !(f === 'all' || tile.dataset.cat === f); });
+          const shown = all.filter((tile) => !tile.hidden);
+          shown.forEach((tile) => { const im = $('img', tile); if (im) im.loading = 'eager'; });
+          if (window.ScrollTrigger) ScrollTrigger.refresh();
+          if (hasGSAP && !reduce) gsap.fromTo(shown, { opacity: 0, y: RISE }, { opacity: 1, y: 0, duration: DUR.base, stagger: STAGGER.items, overwrite: true });
+          else shown.forEach((tile) => { tile.style.opacity = 1; });
+        };
+        if (hasGSAP && !reduce) gsap.to(grid, { opacity: 0, duration: DUR.fast / 2, ease: 'none', onComplete: () => { apply(); gsap.to(grid, { opacity: 1, duration: DUR.fast / 2, ease: 'none' }); } });
+        else apply();
+      }));
+    });
+  }
 
   /* ---------- form ---------- */
   function initForm() {
     const form = $('#contact-form');
     if (!form) return;
     const rules = {
-      first: (v) => v.trim() ? '' : t('err.first'),
-      last: (v) => v.trim() ? '' : t('err.last'),
-      email: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? '' : t('err.email'),
-      details: (v) => v.trim().length > 4 ? '' : t('err.details')
+      first: (v) => (v.trim() ? '' : t('err.first')),
+      last: (v) => (v.trim() ? '' : t('err.last')),
+      email: (v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? '' : t('err.email')),
+      details: (v) => (v.trim().length > 4 ? '' : t('err.details'))
     };
     const check = (name) => {
       const input = form.elements[name];
@@ -358,10 +400,43 @@
     });
   }
 
+  /* ---------- scroll lock + inert background (menu and lightbox share it) ----------
+     Lenis only stops the mouse wheel; on phones the page kept moving under the finger.
+     Fixing the body in place stops that (iOS included), and the scroll position is
+     handed back to Lenis afterwards so the next scroll doesn't jump. */
+  let lenis = null;
+  const scrollLock = (() => {
+    const stack = []; // one entry per open layer (menu, lightbox): the elements it made inert
+    let y = 0;
+    return {
+      // withHeader: also make the header unusable (lightbox); the menu keeps it for its close button
+      on({ withHeader = false } = {}) {
+        if (!stack.length) {
+          y = window.scrollY;
+          Object.assign(document.body.style, { position: 'fixed', top: `-${y}px`, left: '0', right: '0', width: '100%' });
+          lenis && lenis.stop();
+        }
+        const els = [$('main'), $('.site-footer'), $('.skip-link'), withHeader && $('.site-header')].filter(Boolean);
+        els.forEach((el) => { el.inert = true; });
+        stack.push(els);
+      },
+      off() {
+        const els = stack.pop();
+        if (!els) return;
+        const stillCovered = new Set(stack.flat());
+        els.forEach((el) => { if (!stillCovered.has(el)) el.inert = false; });
+        if (stack.length) return;
+        Object.assign(document.body.style, { position: '', top: '', left: '', right: '', width: '' });
+        window.scrollTo(0, y);
+        if (lenis) { lenis.scrollTo(y, { immediate: true, force: true }); lenis.start(); }
+      }
+    };
+  })();
+
   /* ---------- lightbox ---------- */
   function initLightbox() {
-    const tilesEls = $$('.masonry .tile');
-    if (!tilesEls.length) return;
+    const tileEls = $$('.masonry .tile');
+    if (!tileEls.length) return;
     const lb = document.createElement('div');
     lb.className = 'lightbox';
     lb.setAttribute('role', 'dialog');
@@ -369,181 +444,174 @@
     lb.setAttribute('aria-label', t('lb.label'));
     lb.innerHTML = `<span class="lb-count" aria-live="polite"></span>
       <button class="lb-btn lb-close" type="button">${t('lb.close')}</button>
-      <button class="lb-btn lb-prev" type="button" aria-label="${t('lb.prev')}">←</button>
+      <button class="lb-btn lb-prev" type="button" aria-label="${t('lb.prev')}"><span aria-hidden="true">←</span></button>
       <figure><img alt=""><figcaption></figcaption></figure>
-      <button class="lb-btn lb-next" type="button" aria-label="${t('lb.next')}">→</button>`;
+      <button class="lb-btn lb-next" type="button" aria-label="${t('lb.next')}"><span aria-hidden="true">→</span></button>`;
     document.body.append(lb);
     const img = $('img', lb), cap = $('figcaption', lb), count = $('.lb-count', lb);
-    let group = [], i = 0, opener = null;
+    const btns = $$('button', lb);
+    let group = [], i = 0, opener = null, isOpen = false;
 
     const show = (n, dir = 0) => {
       i = (n + group.length) % group.length;
-      const t = group[i];
-      img.src = t.dataset.full;
-      img.alt = $('img', t).alt;
-      cap.textContent = t.dataset.cap;
+      const tile = group[i];
+      img.src = tile.dataset.full;
+      img.alt = $('img', tile).alt;
+      cap.textContent = tile.dataset.cap;
       count.textContent = `${pad(i + 1)} / ${pad(group.length)}`;
-      if (hasGSAP && !reduce) gsap.fromTo(img, { opacity: 0, x: dir * 30 }, { opacity: 1, x: 0, duration: 0.7, ease: 'power3.out' });
+      if (hasGSAP && !reduce) gsap.fromTo(img, { opacity: 0, x: dir * RISE }, { opacity: 1, x: 0, duration: DUR.base, overwrite: true });
     };
-    const open = (t) => {
-      opener = t;
-      group = $$('.tile', t.closest('.masonry')).filter((x) => !x.hidden);
+    const onKey = (e) => {
+      if (e.key === 'Escape') close();
+      else if (e.key === 'ArrowLeft') show(i - 1, -1);
+      else if (e.key === 'ArrowRight') show(i + 1, 1);
+      else if (e.key === 'Tab') {
+        const first = btns[0], last = btns[btns.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    const open = (tile) => {
+      opener = tile;
+      group = $$('.tile', tile.closest('.masonry')).filter((x) => !x.hidden);
+      isOpen = true;
       lb.classList.add('is-open');
-      lenis && lenis.stop();
-      show(group.indexOf(t));
-      if (hasGSAP && !reduce) gsap.fromTo(lb, { opacity: 0 }, { opacity: 1, duration: 0.45 });
-      $('.lb-close', lb).focus();
+      scrollLock.on({ withHeader: true });
+      document.addEventListener('keydown', onKey); // only while open: no global listener left behind
+      show(group.indexOf(tile));
+      if (hasGSAP && !reduce) gsap.fromTo(lb, { opacity: 0 }, { opacity: 1, duration: DUR.fast, ease: 'none' });
+      $('.lb-close', lb).focus({ preventScroll: true });
     };
     const close = () => {
-      const done = () => { lb.classList.remove('is-open'); lenis && lenis.start(); opener && opener.focus(); };
-      if (hasGSAP && !reduce) gsap.to(lb, { opacity: 0, duration: 0.3, onComplete: done }); else done();
+      if (!isOpen) return;
+      isOpen = false;
+      document.removeEventListener('keydown', onKey);
+      const done = () => { lb.classList.remove('is-open'); img.removeAttribute('src'); scrollLock.off(); opener && opener.focus({ preventScroll: true }); };
+      if (hasGSAP && !reduce) gsap.to(lb, { opacity: 0, duration: DUR.fast / 1.5, ease: 'none', onComplete: done }); else done();
     };
-    tilesEls.forEach((t) => t.addEventListener('click', () => open(t)));
+    tileEls.forEach((tile) => tile.addEventListener('click', () => open(tile)));
     $('.lb-close', lb).addEventListener('click', close);
     $('.lb-prev', lb).addEventListener('click', () => show(i - 1, -1));
     $('.lb-next', lb).addEventListener('click', () => show(i + 1, 1));
     lb.addEventListener('click', (e) => { if (e.target === lb) close(); });
-    document.addEventListener('keydown', (e) => {
-      if (!lb.classList.contains('is-open')) return;
-      if (e.key === 'Escape') close();
-      if (e.key === 'ArrowLeft') show(i - 1, -1);
-      if (e.key === 'ArrowRight') show(i + 1, 1);
-      if (e.key === 'Tab') {
-        const f = $$('button', lb);
-        const first = f[0], last = f[f.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      }
-    });
-    let sx = 0;
-    lb.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; }, { passive: true });
-    lb.addEventListener('touchend', (e) => { const dx = e.changedTouches[0].clientX - sx; if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1); });
+    // horizontal swipe changes the photo; mostly-vertical moves are ignored
+    let sx = 0, sy = 0;
+    lb.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+    lb.addEventListener('touchend', (e) => {
+      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) show(i + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+    }, { passive: true });
   }
 
-  /* ---------- menu (adapted from 21st.dev Immersive Full Screen Navigation) ---------- */
+  /* ---------- mobile menu ---------- */
   function initMenu() {
     const btn = $('.menu-btn'), menu = $('#menu'), header = $('.site-header');
-    if (!btn) return;
-    const links = $$('a', menu);
-    let open = false, busy = false, wasLight = false, lockedY = 0;
-    // freeze the page behind the menu. Lenis only stops mouse-wheel scrolling, so on phones the
-    // page kept moving under your finger; fixing the body in place stops that (iOS included).
-    const lock = (on) => {
-      const b = document.body.style;
-      if (on) {
-        lockedY = window.scrollY;
-        Object.assign(b, { position: 'fixed', top: `-${lockedY}px`, left: '0', right: '0', width: '100%' });
-      } else {
-        Object.assign(b, { position: '', top: '', left: '', right: '', width: '' });
-        window.scrollTo(0, lockedY);
-      }
-    };
+    if (!btn || !menu) return;
+    const items = () => $$('a, button', menu);
+    let open = false, busy = false, wasLight = false, tl = null;
+
     const set = (state) => {
       open = state;
       btn.setAttribute('aria-expanded', String(state));
       $('.menu-label', btn).textContent = state ? t('menu.close') : t('menu.open');
-      menu.setAttribute('aria-hidden', String(!state));
-      links.forEach((a) => a.setAttribute('tabindex', state ? '0' : '-1'));
+      menu.inert = !state;
       document.body.classList.toggle('menu-open', state);
-      lock(state);
+      if (state) scrollLock.on(); else scrollLock.off();
     };
-    const toggle = () => {
-      if (busy) return;
-      busy = true;
+    const onKey = (e) => {
+      if (e.key === 'Escape') { toggle(); return; }
+      if (e.key !== 'Tab') return;
+      const f = [btn, ...items()];
+      const idx = f.indexOf(document.activeElement);
+      if (e.shiftKey && idx <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && idx === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    };
+    const finishClose = () => {
+      menu.style.visibility = 'hidden'; busy = false;
+      // an interrupted opening can leave links half-way: reset them for the next open
+      if (hasGSAP) gsap.set($$('.menu-links li > a, .menu-bottom', menu), { clearProps: 'transform,opacity' });
+    };
+    const toggle = (instant = false) => {
+      // closing may always interrupt the opening animation; opening waits until a close has finished
+      if (busy && !open && !instant) return;
+      busy = !instant;
+      tl && tl.kill();
       if (!open) {
         wasLight = header.classList.contains('is-light');
         set(true);
         header.classList.add('is-light');
-        lenis && lenis.stop();
-        if (hasGSAP && !reduce) {
-          gsap.timeline({ onComplete: () => (busy = false) })
-            .set(menu, { visibility: 'visible', clipPath: 'polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)' })
-            .to(menu, { clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)', duration: 1, ease: 'power4.inOut' })
-            .from($$('.menu-links li > a', menu), { yPercent: 110, duration: 0.9, stagger: 0.07, ease: 'power3.out' }, '-=0.45')
-            .from($('.menu-bottom', menu), { opacity: 0, y: 12, duration: 0.5 }, '-=0.5');
-        } else { menu.style.visibility = 'visible'; menu.style.clipPath = 'none'; busy = false; }
+        document.addEventListener('keydown', onKey);
+        if (hasGSAP && !reduce && !instant) {
+          tl = gsap.timeline({ onComplete: () => { busy = false; } })
+            .set(menu, { visibility: 'visible', clipPath: 'inset(0% 0% 100% 0%)' })
+            .to(menu, { clipPath: 'inset(0% 0% 0% 0%)', duration: DUR.slow, ease: EASE_IO })
+            .from($$('.menu-links li > a', menu), { yPercent: 110, duration: DUR.base, stagger: STAGGER.items }, `-=${DUR.slow / 2}`)
+            .from($('.menu-bottom', menu), { opacity: 0, y: RISE / 2, duration: DUR.fast }, `-=${DUR.fast}`);
+        } else { Object.assign(menu.style, { visibility: 'visible', clipPath: 'none' }); busy = false; }
         // keyboard users get focus moved into the menu; on touch screens that would only draw a focus ring
-        if (!window.matchMedia('(hover: none)').matches) setTimeout(() => links[0] && links[0].focus({ preventScroll: true }), reduce ? 0 : 700);
+        if (!touch) setTimeout(() => { const first = $('.menu-links a', menu); first && first.focus({ preventScroll: true }); }, reduce || instant ? 0 : DUR.base * 1000);
       } else {
         set(false);
         if (!wasLight) header.classList.remove('is-light');
-        lenis && lenis.start();
-        const done = () => { menu.style.visibility = 'hidden'; busy = false; btn.focus({ preventScroll: true }); };
-        if (hasGSAP && !reduce) {
-          gsap.to(menu, { clipPath: 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)', duration: 0.9, ease: 'power4.inOut', onComplete: done });
-        } else { menu.style.clipPath = ''; done(); }
+        document.removeEventListener('keydown', onKey);
+        if (hasGSAP && !reduce && !instant) {
+          tl = gsap.to(menu, { clipPath: 'inset(100% 0% 0% 0%)', duration: DUR.base, ease: EASE_IO, onComplete: finishClose });
+        } else { menu.style.clipPath = ''; finishClose(); }
+        if (!instant) btn.focus({ preventScroll: true });
       }
     };
-    btn.addEventListener('click', toggle);
-    document.addEventListener('keydown', (e) => {
-      if (!open) return;
-      if (e.key === 'Escape') toggle();
-      if (e.key === 'Tab') {
-        const f = [btn, ...links];
-        const idx = f.indexOf(document.activeElement);
-        if (e.shiftKey && idx <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
-        else if (!e.shiftKey && idx === f.length - 1) { e.preventDefault(); f[0].focus(); }
-      }
-    });
+    btn.addEventListener('click', () => toggle());
+    // if the window grows to desktop size while the menu is open, close it at once (otherwise the page stays locked)
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const onDesktop = (e) => { if (e.matches && open) toggle(true); };
+    desktop.addEventListener ? desktop.addEventListener('change', onDesktop) : desktop.addListener(onDesktop);
   }
 
   /* ---------- videos ---------- */
   function initHeroVideo() {
     const box = $('.hero-media');
     if (!box) return;
-    const tall = window.matchMedia('(max-aspect-ratio: 4/5)').matches;
+    const tall = mq('(max-aspect-ratio: 4/5)');
     const srcs = tall ? S.video.heroTall : S.video.heroWide;
-    // How it plays (works the same on phones and desktop):
     // - normal speed (slowing a 25–50 fps clip makes it stutter)
-    // - the next shot is started with play() first and only faded in once it is really
-    //   playing. Phones (iOS Safari, Android data saver) do not download a video that
-    //   isn't playing, so waiting for it to "buffer" first would wait forever.
-    // - at most two videos hold a source at any time; the old one is unloaded after the
-    //   crossfade, because phones have very few video decoders and little memory.
+    // - the next shot is started with play() first and only faded in once it is really playing:
+    //   phones don't download a video that isn't playing, so waiting for it to buffer waits forever
+    // - at most two videos hold a source at once; the old one is unloaded after the crossfade
     const vids = srcs.map(() => {
       const v = document.createElement('video');
-      v.muted = true; v.playsInline = true; v.loop = true; v.preload = 'auto';
-      v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true');
+      v.muted = true; v.defaultMuted = true; v.playsInline = true; v.loop = true; v.preload = 'auto';
+      ['muted', 'playsinline', 'webkit-playsinline'].forEach((a) => v.setAttribute(a, ''));
+      v.setAttribute('aria-hidden', 'true');
       box.append(v);
       return v;
     });
     const load = (i) => { if (!vids[i].getAttribute('src')) vids[i].src = srcs[i]; };
     const unload = (i) => { const v = vids[i]; v.pause(); if (v.getAttribute('src')) { v.removeAttribute('src'); v.load(); } };
-    // a still frame sits underneath from the start, so the hero is never an empty black box,
-    // and the first video fades in over it only once it is really playing (no hard jump)
+
+    // a still frame sits underneath from the start: never an empty box, no hard cut to video
     const poster = tall ? S.video.posterTall : S.video.posterWide;
     if (poster) {
       const still = document.createElement('img');
       still.className = 'hero-still'; still.alt = ''; still.setAttribute('aria-hidden', 'true');
-      still.decoding = 'async'; still.fetchPriority = 'high'; still.src = poster;
+      still.decoding = 'async'; still.setAttribute('fetchpriority', 'high'); still.src = poster;
       box.prepend(still);
     }
     vids[0].addEventListener('playing', () => vids[0].classList.add('is-active'), { once: true });
     load(0);
+    if (reduce) return; // still frame only, no motion
 
-    if (reduce) return; // poster / first frame only, no motion
-
-    let cur = 0;
-    let onScreen = true;
-    let busy = false;
-    const SEG = 8; // seconds per shot
-    const play = (v) => { const p = v.play(); return p && p.catch ? p : Promise.resolve(); };
-    // resolves when the video is actually showing moving frames (or rejects after a timeout)
+    let cur = 0, onScreen = true, busy = false;
+    const play = (v) => { const p = v.play(); return p && p.then ? p : Promise.resolve(); };
     const playing = (v, ms = 8000) => new Promise((res, rej) => {
       if (!v.paused && v.readyState >= 3) return res();
-      const ok = () => { clearTimeout(tm); v.removeEventListener('playing', ok); res(); };
+      const ok = () => { clearTimeout(tm); res(); };
       const tm = setTimeout(() => { v.removeEventListener('playing', ok); rej(new Error('timeout')); }, ms);
-      v.addEventListener('playing', ok);
+      v.addEventListener('playing', ok, { once: true });
     });
     const start = () => { load(cur); play(vids[cur]).catch(() => {}); };
     start();
+    onGesture(() => { if (onScreen && vids[cur].paused) start(); }); // autoplay blocked: start on a tap
 
-    // autoplay blocked (phones in power-saving mode): start on the next real tap / click.
-    // Only touchend / click / keydown count as a user gesture for play(), touchstart does not.
-    const kick = () => { if (onScreen && vids[cur].paused) start(); };
-    ['touchend', 'click', 'keydown'].forEach((ev) => window.addEventListener(ev, kick, { passive: true }));
-
-    // pause while scrolled out of view or while the tab is in the background
     if ('IntersectionObserver' in window) {
       new IntersectionObserver(([e]) => {
         onScreen = e.isIntersecting;
@@ -553,11 +621,10 @@
     document.addEventListener('visibilitychange', () => { if (document.hidden) vids[cur].pause(); else if (onScreen) start(); });
 
     if (vids.length < 2) return;
+    const SEG = 8000; // ms per shot
     setInterval(() => {
       if (!onScreen || document.hidden || busy) return;
-      const prev = cur;
-      const nxt = (cur + 1) % vids.length;
-      const v = vids[nxt];
+      const prev = cur, nxt = (cur + 1) % vids.length, v = vids[nxt];
       busy = true;
       load(nxt);
       try { v.currentTime = 0; } catch (_) {}
@@ -566,91 +633,58 @@
         .then(() => {
           cur = nxt;
           vids.forEach((x, k) => x.classList.toggle('is-active', k === cur));
-          setTimeout(() => { unload(prev); busy = false; }, 2600); // after the crossfade
+          setTimeout(() => { unload(prev); busy = false; }, XFADE + 200); // after the CSS crossfade
         })
         .catch(() => { unload(nxt); busy = false; }); // could not start: keep the current shot
-    }, SEG * 1000);
+    }, SEG);
   }
 
+  // videos inside the page (About, quote, Ponuda): load when near, pause / unload when away
   function initInserts() {
-    $$('.page-hero video[src]').forEach((v) => {
-      const slow = () => { v.playbackRate = 0.6; };
-      slow(); v.addEventListener('loadedmetadata', slow); v.addEventListener('play', slow);
-      if (reduce) { v.removeAttribute('autoplay'); v.pause(); }
-    });
     const vids = $$('video[data-src]');
     if (!vids.length) return;
-    // normal speed: slowed-down playback of 25–50 fps clips looks choppy.
-    // On phones: a lighter file (data-src-sm) and the video is unloaded when it leaves the
-    // screen, so only the videos you are looking at use the phone's few video decoders.
-    const small = window.matchMedia('(max-width: 768px), (hover: none)').matches;
+    const small = mq('(max-width: 768px), (hover: none)'); // phones: lighter file, unload off screen
+    const srcFor = (v) => (small && v.dataset.srcSm) || v.dataset.src;
+    const inView = new Set();
     const io = new IntersectionObserver((entries) => {
       entries.forEach(({ isIntersecting, target: v }) => {
         if (isIntersecting) {
-          if (!v.getAttribute('src')) { v.preload = 'auto'; v.src = (small && v.dataset.srcSm) || v.dataset.src; }
+          inView.add(v);
+          if (!v.getAttribute('src')) { v.preload = 'auto'; v.src = srcFor(v); }
           if (!reduce) v.play().catch(() => {});
         } else {
+          inView.delete(v);
           v.pause();
           if (small && v.getAttribute('src')) { v.removeAttribute('src'); v.load(); }
         }
       });
     }, { rootMargin: '200px 0px' });
-    const inView = new Set();
-    const io2 = new IntersectionObserver((entries) => entries.forEach((e) => (e.isIntersecting ? inView.add(e.target) : inView.delete(e.target))));
     vids.forEach((v) => {
       v.muted = true; v.defaultMuted = true; v.playsInline = true;
-      v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+      ['muted', 'playsinline', 'webkit-playsinline'].forEach((a) => v.setAttribute(a, ''));
       v.addEventListener('loadedmetadata', () => { if (reduce) v.currentTime = 1.5; });
-      // if play() was called before the data arrived, make sure it actually starts
       v.addEventListener('canplay', () => { if (inView.has(v) && v.paused && !reduce) v.play().catch(() => {}); });
       io.observe(v);
-      io2.observe(v);
     });
-    // phones in power-saving mode only allow video to start from a real tap: on every tap,
-    // start the videos that are on screen and are not playing yet
-    if (!reduce) {
-      const kick = () => inView.forEach((v) => {
-        if (!v.getAttribute('src')) v.src = (small && v.dataset.srcSm) || v.dataset.src;
-        if (v.paused) v.play().catch(() => {});
-      });
-      ['touchend', 'click', 'keydown'].forEach((ev) => window.addEventListener(ev, kick, { passive: true }));
-    }
+    if (!reduce) onGesture(() => inView.forEach((v) => {
+      if (!v.getAttribute('src')) v.src = srcFor(v);
+      if (v.paused) v.play().catch(() => {});
+    }));
   }
 
-  /* ---------- robust lazy images: promote to eager when near the viewport ---------- */
+  /* ---------- lazy images: start loading a little before they scroll into view ---------- */
   function initLazyImages() {
     const imgs = $$('img[loading="lazy"]');
-    if (!('IntersectionObserver' in window)) { imgs.forEach((i) => (i.loading = 'eager')); return; }
+    if (!('IntersectionObserver' in window)) { imgs.forEach((i) => { i.loading = 'eager'; }); return; }
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => { if (e.isIntersecting) { e.target.loading = 'eager'; io.unobserve(e.target); } });
     }, { rootMargin: '800px 0px' });
     imgs.forEach((i) => io.observe(i));
   }
 
-  /* ---------- hover preview (portfolio index) ---------- */
-  function initHoverPreview() {
-    const list = $('#couples');
-    if (!list || !hasGSAP || window.matchMedia('(hover: none)').matches) return;
-    const pv = document.createElement('div');
-    pv.className = 'hover-preview';
-    pv.setAttribute('aria-hidden', 'true');
-    pv.innerHTML = '<img alt="">';
-    document.body.append(pv);
-    const im = $('img', pv);
-    const xTo = gsap.quickTo(pv, 'x', { duration: 0.6, ease: 'power3' });
-    const yTo = gsap.quickTo(pv, 'y', { duration: 0.6, ease: 'power3' });
-    gsap.set(pv, { xPercent: -50, yPercent: -50 });
-    window.addEventListener('mousemove', (e) => { xTo(e.clientX); yTo(e.clientY); });
-    $$('a', list).forEach((a) => {
-      a.addEventListener('mouseenter', () => { im.src = a.dataset.preview; gsap.to(pv, { opacity: 1, scale: 1, duration: 0.5, ease: 'power3.out' }); });
-      a.addEventListener('mouseleave', () => gsap.to(pv, { opacity: 0, scale: 0.85, duration: 0.4 }));
-    });
-  }
-
-  /* ---------- text splitting ---------- */
+  /* ---------- text splitting (keeps <em> accents) ---------- */
   function splitWords(el) {
     if (el.dataset.splitDone) return $$('.w > span', el);
-    // keeps <em> accents (italic words) while splitting
     const out = [];
     el.childNodes.forEach((n) => {
       const em = n.nodeType === 1 && n.tagName === 'EM';
@@ -663,113 +697,126 @@
     return $$('.w > span', el);
   }
 
-  /* ---------- smooth scroll + animations ---------- */
-  let lenis = null;
-
+  /* ---------- smooth scroll ---------- */
   function initScroll() {
     if (reduce || typeof window.Lenis === 'undefined') return;
-    lenis = new Lenis({ duration: 1.25, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), smoothWheel: true });
+    // Lenis smooths the mouse wheel only; touch scrolling stays native (best feel on phones)
+    lenis = new Lenis({ duration: DUR.slow, easing: (x) => Math.min(1, 1.001 - Math.pow(2, -10 * x)), smoothWheel: true });
     if (hasGSAP) {
       lenis.on('scroll', ScrollTrigger.update);
-      gsap.ticker.add((t) => lenis.raf(t * 1000));
+      gsap.ticker.add((time) => lenis.raf(time * 1000));
       gsap.ticker.lagSmoothing(0);
     } else {
-      const raf = (t) => { lenis.raf(t); requestAnimationFrame(raf); };
+      const raf = (time) => { lenis.raf(time); requestAnimationFrame(raf); };
       requestAnimationFrame(raf);
     }
-    $$('a[href^="#"], a[data-top]').forEach((a) => a.addEventListener('click', (e) => {
-      const id = a.getAttribute('href');
-      const target = id === '#top' ? 0 : $(id);
-      if (target !== null) { e.preventDefault(); lenis.scrollTo(target, { offset: 0, duration: 1.6 }); }
-    }));
+  }
+  const scrollToTarget = (target) => {
+    if (lenis) { lenis.scrollTo(target, { duration: DUR.slow * 1.3 }); return; }
+    const top = target === 0 ? 0 : target.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' });
+  };
+
+  /* ---------- in-page links (#…) and page-to-page links (curtain) ---------- */
+  function initLinks(curtain) {
+    const norm = (p) => p.replace(/index\.html$/, ''); // "/site/" and "/site/index.html" are the same page
+    const query = (u) => { const s = new URLSearchParams(u.search); s.delete('lang'); return s.toString(); }; // ?lang= doesn't make it another page
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest('a[href]');
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const href = a.getAttribute('href');
+      if (a.target === '_blank' || /^(mailto|tel):/.test(href)) return;
+      const url = new URL(href, location.href);
+      if (url.origin !== location.origin) return;
+      const samePage = norm(url.pathname) === norm(location.pathname) && query(url) === query(location);
+      const switchesLanguage = url.searchParams.has('lang');
+      if (samePage && !switchesLanguage && (url.hash || href === '#top')) {
+        const target = url.hash === '#top' || href === '#top' ? 0 : $(url.hash);
+        if (target === null) return;
+        e.preventDefault();
+        scrollToTarget(target);
+        if (url.hash === '#main' || a.classList.contains('skip-link')) $('main').focus({ preventScroll: true });
+        return;
+      }
+      if (!curtain || (samePage && !switchesLanguage)) return; // plain navigation
+      e.preventDefault();
+      gsap.set(curtain, { display: 'grid', yPercent: 100 });
+      gsap.to(curtain, { yPercent: 0, duration: DUR.base, ease: EASE_IO, onComplete: () => { location.href = url.href; } });
+    });
+    // back / forward from the cache: never show a closed curtain
+    window.addEventListener('pageshow', (e) => { if (e.persisted && curtain) gsap.set(curtain, { display: 'none' }); });
   }
 
+  /* ---------- header: light over dark sections, solid when scrolled, hides on scroll down ---------- */
   function headerBehaviour() {
     const header = $('.site-header');
     const darkZones = $$('[data-dark]');
-    let last = 0;
+    let last = 0, ticking = false;
     const update = () => {
+      ticking = false;
+      if (document.body.classList.contains('menu-open')) return;
       const y = window.scrollY;
-      if (!document.body.classList.contains('menu-open')) {
-        const probe = 40;
-        const overDark = darkZones.some((z) => { const r = z.getBoundingClientRect(); return r.top <= probe && r.bottom >= probe; });
-        header.classList.toggle('is-light', overDark);
-        header.classList.toggle('is-solid', !overDark && y > 80);
-        header.classList.toggle('is-hidden', y > last && y > 400);
-      }
+      const probe = 40;
+      const overDark = darkZones.some((z) => { const r = z.getBoundingClientRect(); return r.top <= probe && r.bottom >= probe; });
+      header.classList.toggle('is-light', overDark);
+      header.classList.toggle('is-solid', !overDark && y > 80);
+      header.classList.toggle('is-hidden', y > last && y > 400);
       last = y;
     };
-    if (lenis) lenis.on('scroll', update); else window.addEventListener('scroll', update, { passive: true });
+    const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
+    if (lenis) lenis.on('scroll', onScroll); else window.addEventListener('scroll', onScroll, { passive: true });
     update();
   }
 
+  /* ---------- animations ---------- */
   function animate() {
+    const curtain = $('.curtain');
+    initLinks(hasGSAP && !reduce ? curtain : null);
     if (!hasGSAP || reduce) return;
     gsap.registerPlugin(ScrollTrigger);
-    // phones: the address bar showing/hiding must not re-measure the whole page (that causes jumps)
-    const touch = window.matchMedia('(hover: none)').matches;
+    gsap.defaults({ ease: EASE, duration: DUR.base });
+    // phones: the address bar showing/hiding must not re-measure the page (that causes jumps)
     ScrollTrigger.config({ ignoreMobileResize: true });
 
+    const reveal = (targets, vars = {}) => gsap.from(targets, { opacity: 0, y: RISE, ...vars });
+    const onScrollIn = (trigger) => ({ trigger, start: START });
+
     // page enter: curtain lifts
-    const curtain = $('.curtain');
     const enter = gsap.timeline();
     if (curtain) {
-      const firstVisit = page === 'home' && !sessionStorageGet('nb-visited');
-      if (firstVisit) {
-        enter.to($('path', curtain), { strokeDashoffset: 0, duration: 1.4, ease: 'power2.inOut' })
-             .to(curtain, { yPercent: -100, duration: 1.2, ease: 'power4.inOut' }, '+=0.15');
-        sessionStorageSet('nb-visited', '1');
+      if (page === 'home' && !store.get('nb-visited', sessionStorage)) {
+        enter.to($('path', curtain), { strokeDashoffset: 0, duration: DUR.slow, ease: EASE_IO })
+             .to(curtain, { yPercent: -100, duration: DUR.slow, ease: EASE_IO }, '+=0.1');
+        store.set('nb-visited', '1', sessionStorage);
       } else {
         gsap.set($('path', curtain), { strokeDashoffset: 0 });
-        enter.to(curtain, { yPercent: -100, duration: 1, ease: 'power4.inOut', delay: 0.05 });
+        enter.to(curtain, { yPercent: -100, duration: DUR.slow, ease: EASE_IO });
       }
       enter.set(curtain, { display: 'none' });
     }
+    const afterCurtain = curtain ? `-=${DUR.slow / 2}` : 0;
 
-    // page leave: curtain drops
-    $$('a[href]').forEach((a) => {
-      const href = a.getAttribute('href');
-      if (!href || href.startsWith('#') || a.target === '_blank' || href.startsWith('mailto') || href.startsWith('tel') || /^https?:/.test(href)) return;
-      a.addEventListener('click', (e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey) return;
-        const url = new URL(href, location.href);
-        // "/site/" and "/site/index.html" are the same page (GitHub Pages serves both)
-        const norm = (p) => p.replace(/index\.html$/, '');
-        if (norm(url.pathname) === norm(location.pathname) && url.search === location.search && url.hash) {
-          const target = $(url.hash);
-          if (target) { e.preventDefault(); lenis ? lenis.scrollTo(target, { duration: 1.6 }) : target.scrollIntoView({ behavior: 'smooth' }); }
-          return;
-        }
-        e.preventDefault();
-        if (!curtain) { location.href = href; return; }
-        gsap.set(curtain, { display: 'grid', yPercent: 100 });
-        gsap.to(curtain, { yPercent: 0, duration: 0.8, ease: 'power4.inOut', onComplete: () => { location.href = href; } });
-      });
-    });
-    window.addEventListener('pageshow', (e) => { if (e.persisted && curtain) gsap.set(curtain, { display: 'none' }); });
-
-    // hero name — letters rise
+    // hero name: letters rise
     const name = $('.hero-name');
     if (name) {
-      name.setAttribute('aria-label', name.textContent);
+      name.setAttribute('aria-label', name.textContent.trim());
       name.innerHTML = name.textContent.trim().split(/\s+/)
         .map((word) => `<span class="word" aria-hidden="true">${[...word].map((ch) => `<span class="char">${ch}</span>`).join('')}</span>`).join(' ');
-      enter.from($$('.char', name), { yPercent: 110, opacity: 0, duration: 1.4, stagger: 0.045, ease: 'power4.out' }, curtain ? '-=0.6' : 0)
-           .from('.hero-meta > *, .hero-rec', { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: 'power2.out' }, '-=0.9');
+      enter.from($$('.char', name), { yPercent: 110, duration: DUR.slow, stagger: STAGGER.letters }, afterCurtain)
+           .from('.hero-meta > *, .hero-rec', { opacity: 0, y: RISE / 2, duration: DUR.base, stagger: STAGGER.items }, `-=${DUR.base}`);
       gsap.to('.hero-inner', { yPercent: -18, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
-      // zooming a playing, filtered video while scrolling is too heavy for phones
       if (!touch) gsap.to('.hero-media', { scale: 1.12, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
     }
 
-    // page hero titles
+    // inner page header titles
     $$('.page-hero .h1').forEach((h) => {
-      const words = splitWords(h);
-      enter.from(words, { yPercent: 110, duration: 1.3, stagger: 0.08, ease: 'power4.out' }, curtain ? '-=0.55' : 0);
-      gsap.to(h.closest('.page-hero').querySelector('.media'), { yPercent: 14, scale: 1.08, ease: 'none', scrollTrigger: { trigger: h.closest('.page-hero'), start: 'top top', end: 'bottom top', scrub: true } });
+      enter.from(splitWords(h), { yPercent: 110, duration: DUR.slow, stagger: STAGGER.words }, afterCurtain);
+      const hero = h.closest('.page-hero');
+      if (!touch) gsap.to($('.media', hero), { yPercent: 12, scale: 1.06, ease: 'none', scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } });
     });
-    $$('.page-hero [data-hero-fade]').forEach((el) => enter.from(el, { opacity: 0, y: 14, duration: 1 }, '-=0.9'));
+    $$('.page-hero [data-hero-fade]').forEach((el) => enter.from(el, { opacity: 0, y: RISE / 2, duration: DUR.base }, `-=${DUR.base}`));
 
-    // statement: words light up while scrolling (scrub)
+    // About statement: words light up while scrolling
     $$('[data-scrub-words]').forEach((el) => {
       const words = splitWords(el);
       gsap.set(words, { opacity: 0.14 });
@@ -778,106 +825,71 @@
 
     // headings: words rise
     $$('[data-split]').forEach((el) => {
-      const words = splitWords(el);
-      gsap.from(words, { yPercent: 110, duration: 1.2, stagger: 0.06, ease: 'power4.out', scrollTrigger: { trigger: el, start: 'top 85%' } });
+      gsap.from(splitWords(el), { yPercent: 110, duration: DUR.slow, stagger: STAGGER.words, scrollTrigger: onScrollIn(el) });
     });
 
-    // generic reveal
-    $$('[data-reveal]').forEach((el) => {
-      gsap.from(el, { opacity: 0, y: 28, duration: 1.1, ease: 'power3.out', scrollTrigger: { trigger: el, start: 'top 88%' } });
-    });
-    $$('[data-stagger]').forEach((el) => {
-      gsap.from(el.children, { opacity: 0, y: 28, duration: 1, stagger: 0.1, ease: 'power3.out', scrollTrigger: { trigger: el, start: 'top 85%' } });
-    });
+    // text and groups
+    $$('[data-reveal]').forEach((el) => reveal(el, { scrollTrigger: onScrollIn(el) }));
+    $$('[data-stagger]').forEach((el) => reveal(el.children, { stagger: STAGGER.items, scrollTrigger: onScrollIn(el) }));
 
-    // images: clip reveal + inner parallax
+    // photos and video frames: a calm fade + rise. On phones a <video> must not be clipped or
+    // transformed while it has a CSS filter (iOS Safari can render it blank), so only desktop
+    // gets the clip reveal and the inner parallax.
     $$('[data-img]').forEach((fr) => {
-      const vid = fr.querySelector('video');
-      if (!vid) { // photos: a calm fade, never cropped or zoomed
-        gsap.from(fr, { opacity: 0, y: 30, duration: 1.4, ease: 'power3.out', scrollTrigger: { trigger: fr, start: 'top 88%' } });
-        return;
-      }
-      // phones (iOS Safari especially) can render a <video> blank when it is transformed or
-      // clipped while it also has a CSS filter, so on touch screens it only fades in
-      if (touch) { gsap.from(fr, { opacity: 0, y: 30, duration: 1.2, ease: 'power3.out', scrollTrigger: { trigger: fr, start: 'top 88%' } }); return; }
-      gsap.fromTo(fr, { clipPath: 'inset(12% 8% 12% 8%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.6, ease: 'power4.out', scrollTrigger: { trigger: fr, start: 'top 85%' } });
-      gsap.fromTo(vid, { scale: 1.18, yPercent: -4 }, { scale: 1.02, yPercent: 4, ease: 'none', scrollTrigger: { trigger: fr, start: 'top bottom', end: 'bottom top', scrub: true } });
+      const vid = $('video', fr);
+      if (!vid || touch) { reveal(fr, { duration: DUR.slow, scrollTrigger: onScrollIn(fr) }); return; }
+      gsap.fromTo(fr, { clipPath: 'inset(10% 6% 10% 6%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: DUR.slow, ease: EASE_IO, scrollTrigger: onScrollIn(fr) });
+      gsap.fromTo(vid, { scale: 1.15, yPercent: -3 }, { scale: 1.02, yPercent: 3, ease: 'none', scrollTrigger: { trigger: fr, start: 'top bottom', end: 'bottom top', scrub: true } });
     });
 
-    // video inserts: widen from a letterbox
+    // wide video insert (Ponuda)
     $$('[data-insert]').forEach((fr) => {
-      if (!touch) gsap.fromTo(fr, { clipPath: 'inset(18% 10% 18% 10%)' }, { clipPath: 'inset(0% 0% 0% 0%)', ease: 'none', scrollTrigger: { trigger: fr, start: 'top 95%', end: 'top 35%', scrub: true } });
-      gsap.from($('.label', fr), { opacity: 0, y: 16, duration: 1, scrollTrigger: { trigger: fr, start: 'top 55%' } });
+      if (!touch) gsap.fromTo(fr, { clipPath: 'inset(16% 8% 16% 8%)' }, { clipPath: 'inset(0% 0% 0% 0%)', ease: 'none', scrollTrigger: { trigger: fr, start: 'top 95%', end: 'top 35%', scrub: true } });
+      reveal($('.label', fr), { scrollTrigger: { trigger: fr, start: 'top 55%' } });
     });
 
-    // masonry tiles: soft stagger (21st Masonry Lightbox entrance)
-    $$('.masonry').forEach((m) => {
-      ScrollTrigger.batch($$('.tile', m), {
-        start: 'top 92%',
-        onEnter: (b) => gsap.fromTo(b, touch ? { opacity: 0, y: 30 } : { opacity: 0, y: 40, filter: 'blur(6px)' }, touch ? { opacity: 1, y: 0, duration: 0.9, stagger: 0.06, ease: 'power3.out', overwrite: true } : { opacity: 1, y: 0, filter: 'blur(0px)', duration: 1.1, stagger: 0.08, ease: 'power3.out', overwrite: true })
-      });
-      gsap.set($$('.tile', m), { opacity: 0 });
-    });
+    // photo grids: items appear in small batches as they scroll in (same motion everywhere)
+    const batchReveal = (items, duration = DUR.slow) => {
+      if (!items.length) return;
+      gsap.set(items, { opacity: 0, y: RISE });
+      ScrollTrigger.batch(items, { start: START, onEnter: (b) => gsap.to(b, { opacity: 1, y: 0, duration, stagger: STAGGER.items, overwrite: true }) });
+    };
+    $$('.masonry').forEach((m) => batchReveal($$('.tile', m), DUR.base));
+    batchReveal($$('#strip-track .strip-item'));
 
-    // lists
-    // couples: reveal row by row, precise and even
+    // portfolio couples: photo opens from the bottom, caption follows
     const couples = $$('.couple');
     if (couples.length) {
+      gsap.set(couples.map((c) => $('.couple-media', c)), { clipPath: 'inset(100% 0% 0% 0%)' });
+      gsap.set(couples.map((c) => $('.couple-info', c)), { opacity: 0, y: RISE / 2 });
       ScrollTrigger.batch(couples, {
-        start: 'top 88%',
+        start: START,
         onEnter: (b) => {
-          gsap.fromTo(b.map((c) => $('.couple-media', c)), { clipPath: 'inset(100% 0% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.4, stagger: 0.12, ease: 'power4.inOut' });
-          gsap.fromTo(b.map((c) => $('.couple-info', c)), { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 1, stagger: 0.12, delay: 0.5, ease: 'power3.out' });
+          gsap.to(b.map((c) => $('.couple-media', c)), { clipPath: 'inset(0% 0% 0% 0%)', duration: DUR.slow, stagger: STAGGER.items, ease: EASE_IO });
+          gsap.to(b.map((c) => $('.couple-info', c)), { opacity: 1, y: 0, duration: DUR.base, stagger: STAGGER.items, delay: DUR.slow / 3 });
         }
       });
-      gsap.set(couples.map((c) => $('.couple-media', c)), { clipPath: 'inset(100% 0% 0% 0%)' });
-      gsap.set(couples.map((c) => $('.couple-info', c)), { opacity: 0 });
     }
-    $$('.offer-list li, .couples li').forEach((li) => {
-      gsap.from(li, { opacity: 0, y: 40, duration: 1.1, ease: 'power3.out', scrollTrigger: { trigger: li, start: 'top 92%' } });
-    });
 
     // quote
     const q = $('#quote-text');
     if (q) {
-      const words = splitWords(q);
-      gsap.from(words, { yPercent: 110, opacity: 0, duration: 1.3, stagger: 0.05, ease: 'power4.out', scrollTrigger: { trigger: q, start: 'top 75%' } });
-      if (!touch) gsap.fromTo('.quote video', { scale: 1.2 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: '.quote', start: 'top bottom', end: 'bottom top', scrub: true } });
+      gsap.from(splitWords(q), { yPercent: 110, opacity: 0, duration: DUR.slow, stagger: STAGGER.words, scrollTrigger: { trigger: q, start: 'top 75%' } });
+      if (!touch) gsap.fromTo('.quote video', { scale: 1.15 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: '.quote', start: 'top bottom', end: 'bottom top', scrub: true } });
     }
 
-    // home portfolio: calm grid, each couple fades in softly as it comes into view
-    const stripItems = $$('#strip-track .strip-item');
-    if (stripItems.length) {
-      gsap.set(stripItems, { opacity: 0, y: 24 });
-      ScrollTrigger.batch(stripItems, {
-        start: 'top 90%',
-        onEnter: (b) => gsap.to(b, { opacity: 1, y: 0, duration: 1.4, stagger: 0.15, ease: 'power2.out', overwrite: true })
-      });
-    }
-
-    // thin line drawn while scrolling (idea from dia.rs)
-    $$('.draw-line path').forEach((p) => {
-      const len = p.getTotalLength();
-      gsap.set(p, { strokeDasharray: len, strokeDashoffset: len });
-      gsap.to(p, { strokeDashoffset: 0, ease: 'none', scrollTrigger: { trigger: p.closest('section'), start: 'top 70%', end: 'bottom 60%', scrub: 1 } });
-    });
-
-    // footer mark drift
+    // footer name drifts in
     gsap.from('.footer-mark', { xPercent: -4, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.site-footer', start: 'top bottom', end: 'bottom bottom', scrub: true } });
 
-    window.addEventListener('load', () => ScrollTrigger.refresh());
-    // photos keep their natural height, so re-measure as they arrive
-    let rt;
-    $$('main img').forEach((im) => im.addEventListener('load', () => { clearTimeout(rt); rt = setTimeout(() => ScrollTrigger.refresh(), 250); }));
+    // all grids use fixed proportions, so the page only needs re-measuring once everything has loaded
+    window.addEventListener('load', () => ScrollTrigger.refresh(), { once: true });
   }
-
-  function sessionStorageGet(k) { try { return sessionStorage.getItem(k); } catch (_) { return null; } }
-  function sessionStorageSet(k, v) { try { sessionStorage.setItem(k, v); } catch (_) {} }
 
   /* ---------- boot ---------- */
   injectChrome();
   applyStaticText();
   (render[page] || (() => {}))();
+  document.documentElement.classList.remove('js-loading'); // content is in place: show it (see style.css)
   initScroll();
   initMenu();
   initHeroVideo();
@@ -885,8 +897,9 @@
   initLazyImages();
   initLightbox();
   initFilters();
-  initHoverPreview();
   headerBehaviour();
+  // wait for the web fonts (max 1.8 s) so headings don't jump when the font swaps in;
+  // the curtain covers the page meanwhile
   const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
   Promise.race([fontsReady, new Promise((r) => setTimeout(r, 1800))]).then(animate);
 })();
