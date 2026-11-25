@@ -778,3 +778,47 @@ body { font-weight: 400; }
 
 /* hero still frame under the video (shown until the video plays, or if a phone blocks autoplay) */
 .hero-still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.12) brightness(0.78); }
+
+/* ==========================================================================
+   Mobile menu (redone): even spacing, nothing clipped, current page marked,
+   booking button + language switch, footer aligned
+   ========================================================================== */
+.menu { justify-content: space-between; gap: 32px; padding: calc(var(--header-h) + 24px) var(--gutter) max(28px, env(safe-area-inset-bottom)); }
+.menu nav { flex: 1; display: flex; align-items: center; }
+.menu-links { width: 100%; border-top: 1px solid var(--line-light); }
+.menu-links li { border-bottom: 1px solid var(--line-light); }
+.menu-links a {
+  display: flex; align-items: baseline; gap: 18px; width: 100%;
+  padding: clamp(12px, 2.4vh, 22px) 0; font-size: clamp(38px, 10.5vw, 88px); line-height: 1.15;
+}
+/* the roll-over effect keeps a copy of the word below it; give letters like g/j room so nothing is cut */
+.menu-links a .label { padding-bottom: .25em; margin-bottom: -.25em; }
+.menu-links a .label span { text-shadow: 0 1.4em currentColor; }
+.menu-links a:hover .label span, .menu-links a:focus-visible .label span { transform: translateY(-1.4em); }
+@media (hover: none) {
+  .menu-links a .label { overflow: visible; }
+  .menu-links a .label span { text-shadow: none; transform: none !important; }
+}
+.menu-links a .num { font-size: 13px; color: var(--sand); min-width: 22px; }
+.menu-links a[aria-current="page"] .label span { font-style: italic; color: var(--sand); }
+.menu-bottom { display: flex; flex-direction: column; gap: 24px; }
+.menu-cta { width: 100%; color: var(--paper); border-color: var(--gold); }
+.menu-foot { align-items: center; margin: 0; }
+.menu-foot .lang-switch { font-size: 12px; }
+.menu-foot .lang-switch a { color: var(--paper); }
+.menu-foot .lang-switch a[aria-current="true"] { color: var(--sand); }
+.menu-ig { gap: 10px; }
+/* only the switch in the header hides while the menu is open (the menu has its own) */
+.menu-open .lang-switch { opacity: 1; pointer-events: auto; }
+.menu-open .site-header .lang-switch { opacity: 0; pointer-events: none; }
+@media (max-height: 640px) { .menu-links a { font-size: clamp(32px, 8.5vw, 64px); padding: 8px 0; } }
+
+/* while the menu is open the header switch is removed from the layout (the menu has its own), so "Zatvori" + icon always fit */
+.menu-open .site-header .lang-switch { display: none; }
+@media (max-width: 360px) { .header-right { gap: 10px; margin-left: 12px; } .menu-btn { gap: 10px; } }
+
+/* section labels: the gold rule is an inline mark, so labels that contain links and
+   separators ("← Ponuda · Fotografija · Premium") flow as one line of text and wrap normally */
+p.eyebrow { display: block; }
+p.eyebrow::before { display: inline-block; vertical-align: middle; margin: -2px 14px 0 0; }
+.center > p.eyebrow { text-align: center; }

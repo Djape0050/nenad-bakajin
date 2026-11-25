@@ -91,10 +91,13 @@
     menu.id = 'menu';
     menu.setAttribute('aria-hidden', 'true');
     menu.innerHTML = `
-      <nav aria-label="Meni"><ul class="menu-links">
-        ${NAV.filter((n) => n.key !== 'about').map((n, i) => `<li><a href="${n.href}" tabindex="-1"><span class="num">${pad(i + 1)}</span><span class="label"><span>${n.label}</span></span></a></li>`).join('')}
+      <nav aria-label="${t('menu.open')}"><ul class="menu-links">
+        ${NAV.filter((n) => n.key !== 'about').map((n, i) => `<li><a href="${n.href}" tabindex="-1"${n.key === activeKey ? ' aria-current="page"' : ''}><span class="num">${pad(i + 1)}</span><span class="label"><span>${n.label}</span></span></a></li>`).join('')}
       </ul></nav>
-      <div class="menu-foot"><span>${t('menu.foot')}</span><a href="${S.instagram}" target="_blank" rel="noopener" tabindex="-1">${IG} Instagram</a></div>`;
+      <div class="menu-bottom">
+        <a class="btn menu-cta" href="kontakt.html" tabindex="-1">${t('nav.cta')} ${ARROW}</a>
+        <div class="menu-foot">${LANG_SWITCH.replace(/<a /g, '<a tabindex="-1" ')}<a class="menu-ig" href="${S.instagram}" target="_blank" rel="noopener" tabindex="-1">${IG} Instagram</a></div>
+      </div>`;
     header.after(menu);
 
     const footer = document.createElement('footer');
@@ -422,7 +425,19 @@
     const btn = $('.menu-btn'), menu = $('#menu'), header = $('.site-header');
     if (!btn) return;
     const links = $$('a', menu);
-    let open = false, busy = false, wasLight = false;
+    let open = false, busy = false, wasLight = false, lockedY = 0;
+    // freeze the page behind the menu. Lenis only stops mouse-wheel scrolling, so on phones the
+    // page kept moving under your finger; fixing the body in place stops that (iOS included).
+    const lock = (on) => {
+      const b = document.body.style;
+      if (on) {
+        lockedY = window.scrollY;
+        Object.assign(b, { position: 'fixed', top: `-${lockedY}px`, left: '0', right: '0', width: '100%' });
+      } else {
+        Object.assign(b, { position: '', top: '', left: '', right: '', width: '' });
+        window.scrollTo(0, lockedY);
+      }
+    };
     const set = (state) => {
       open = state;
       btn.setAttribute('aria-expanded', String(state));
@@ -430,6 +445,7 @@
       menu.setAttribute('aria-hidden', String(!state));
       links.forEach((a) => a.setAttribute('tabindex', state ? '0' : '-1'));
       document.body.classList.toggle('menu-open', state);
+      lock(state);
     };
     const toggle = () => {
       if (busy) return;
@@ -444,14 +460,15 @@
             .set(menu, { visibility: 'visible', clipPath: 'polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)' })
             .to(menu, { clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)', duration: 1, ease: 'power4.inOut' })
             .from($$('.menu-links li > a', menu), { yPercent: 110, duration: 0.9, stagger: 0.07, ease: 'power3.out' }, '-=0.45')
-            .from($('.menu-foot', menu), { opacity: 0, y: 12, duration: 0.5 }, '-=0.5');
+            .from($('.menu-bottom', menu), { opacity: 0, y: 12, duration: 0.5 }, '-=0.5');
         } else { menu.style.visibility = 'visible'; menu.style.clipPath = 'none'; busy = false; }
-        setTimeout(() => links[0] && links[0].focus(), reduce ? 0 : 700);
+        // keyboard users get focus moved into the menu; on touch screens that would only draw a focus ring
+        if (!window.matchMedia('(hover: none)').matches) setTimeout(() => links[0] && links[0].focus({ preventScroll: true }), reduce ? 0 : 700);
       } else {
         set(false);
         if (!wasLight) header.classList.remove('is-light');
         lenis && lenis.start();
-        const done = () => { menu.style.visibility = 'hidden'; busy = false; btn.focus(); };
+        const done = () => { menu.style.visibility = 'hidden'; busy = false; btn.focus({ preventScroll: true }); };
         if (hasGSAP && !reduce) {
           gsap.to(menu, { clipPath: 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)', duration: 0.9, ease: 'power4.inOut', onComplete: done });
         } else { menu.style.clipPath = ''; done(); }
