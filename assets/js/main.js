@@ -26,7 +26,8 @@
   const DUR = { fast: 0.45, base: 0.8, slow: 1.2 };   // = --dur-2 / --dur-3 / --dur-4
   const STAGGER = { letters: 0.04, words: 0.06, items: 0.08 };
   const RISE = 24;                                     // px every reveal travels
-  const START = 'top 88%';                             // when scroll reveals start
+  // when scroll reveals start: on phones a bit earlier, so photos are already there when you get to them
+  const START = touch ? 'top 98%' : 'top 88%';
   const XFADE = 1600;                                  // ms, = --dur-video
 
   const $ = (s, c = document) => c.querySelector(s);
@@ -187,12 +188,26 @@
   }
 
   /* ---------- page renderers ---------- */
-  const photo = (id, w, alt, extra = '') =>
-    `<img src="${IMG(id, w)}" alt="${esc(alt)}" loading="lazy" decoding="async" ${extra}>`;
+  // Responsive photos: the browser picks the smallest file that is still sharp for the slot
+  // (a phone gets ~400-700 px instead of 1000-1400 px: 4-5x less data).
+  const WIDTHS = [400, 700, 1000, 1400];
+  const SIZES = {
+    third: '(min-width: 1024px) 31vw, (min-width: 600px) 48vw, 100vw', // 3 / 2 / 1 columns
+    tile: '(min-width: 760px) 31vw, 48vw',                             // 3 / 2 columns
+    card: '(min-width: 900px) 30vw, 100vw',
+    half: '(min-width: 900px) 48vw, 100vw'
+  };
+  const photo = (id, w, alt, { sizes = '100vw', cls = '', eager = false, decorative = false } = {}) => {
+    const ws = WIDTHS.filter((x) => x < w).concat(w);
+    const srcset = ws.map((x) => `${IMG(id, x)} ${x}w`).join(', ');
+    return `<img src="${IMG(id, w)}" srcset="${srcset}" sizes="${sizes}" alt="${esc(alt)}"` +
+      (cls ? ` class="${cls}"` : '') + (decorative ? ' aria-hidden="true"' : '') +
+      ` loading="${eager ? 'eager' : 'lazy'}" decoding="async"` + (eager ? ' fetchpriority="high"' : '') + '>';
+  };
 
   function tiles(list, label) {
     return list.map((id, i) => `<button class="tile" type="button" data-full="${IMG(id, 2000)}" data-cap="${esc(label)} · ${pad(i + 1)}" aria-label="${t('lb.open')} ${i + 1}: ${esc(label)}">
-        ${photo(id, 1000, `${label}, ${t('photo')} ${i + 1}`)}
+        ${photo(id, 1000, `${label}, ${t('photo')} ${i + 1}`, { sizes: SIZES.tile, eager: i < 2 })}
         <span class="tile-cap" aria-hidden="true">${esc(label)} · ${pad(i + 1)}</span></button>`).join('');
   }
 
@@ -201,7 +216,7 @@
     return items.map(({ id, cat }, i) => {
       const label = CAT_LABEL[cat];
       return `<button class="tile" type="button" data-cat="${cat}" data-full="${IMG(id, 2000)}" data-cap="${label}" aria-label="${t('lb.open')}: ${label}">
-        ${photo(id, 1000, `${label}, ${t('photo')} ${i + 1}`)}
+        ${photo(id, 1000, `${label}, ${t('photo')} ${i + 1}`, { sizes: SIZES.tile })}
         <span class="tile-cap" aria-hidden="true">${label}</span></button>`;
     }).join('');
   }
@@ -219,7 +234,7 @@
 
       $('#strip-track').innerHTML = S.couples.map((c, i) => `
         <div class="strip-item"><a href="galerija.html?c=${c.slug}">
-          <div class="frame">${photo(c.images[0], 1000, `${c.a} ${t('and')} ${c.b}`)}</div>
+          <div class="frame">${photo(c.images[0], 1000, `${c.a} ${t('and')} ${c.b}`, { sizes: SIZES.third })}</div>
           <div class="strip-cap"><span class="n" aria-hidden="true">(${pad(i + 1)})</span><span class="t">${c.a} <em>&amp;</em> ${c.b}</span></div></a></div>`).join('');
 
       $('#tier-grid').innerHTML = ['Basic', 'Editorial', 'Premium'].map((tier, i) => {
@@ -244,8 +259,8 @@
         <article class="couple">
           <a href="galerija.html?c=${c.slug}">
             <div class="couple-media">
-              ${photo(c.images[0], 1200, `${c.a} ${t('and')} ${c.b}`, 'class="main"')}
-              ${photo(c.images[1], 1200, '', 'class="alt" aria-hidden="true"')}
+              ${photo(c.images[0], 1200, `${c.a} ${t('and')} ${c.b}`, { sizes: SIZES.third, cls: 'main', eager: i < 2 })}
+              ${touch ? '' : photo(c.images[1], 1200, '', { sizes: SIZES.third, cls: 'alt', decorative: true })}
               <span class="couple-cta" aria-hidden="true">${t('couple.cta')}</span>
             </div>
             <div class="couple-info">
@@ -280,7 +295,7 @@
       const card = (p, i) => `
         <article class="pk-card">
           <a class="cover" href="paket.html?p=${p.slug}" tabindex="-1" aria-hidden="true"></a>
-          <div class="frame natural">${photo(p.image, 1000, '')}</div>
+          <div class="frame natural">${photo(p.image, 1000, '', { sizes: SIZES.card, eager: i === 0 })}</div>
           <div class="pk-body">
             <div class="pk-tier"><span class="eyebrow">${p.tier}</span><span class="num" aria-hidden="true">${pad(i + 1)}</span></div>
             <h3 class="pk-name">${p.title}</h3>
@@ -315,7 +330,7 @@
     blog() {
       $('#posts').innerHTML = S.posts.map((p, i) => `
         <article class="post-card"><a href="post.html?p=${p.slug}">
-          <div class="frame natural">${photo(p.image, 1200, p.title)}</div>
+          <div class="frame natural">${photo(p.image, 1200, p.title, { sizes: SIZES.half, eager: i < 2 })}</div>
           <div class="meta"><span class="eyebrow">${t('post.label')}</span><span class="num" aria-hidden="true">${pad(i + 1)}</span></div>
           <h2>${p.title}</h2><p>${p.excerpt}</p><span class="link-line">${t('post.read')}</span></a></article>`).join('');
     },
@@ -678,7 +693,7 @@
     if (!('IntersectionObserver' in window)) { imgs.forEach((i) => { i.loading = 'eager'; }); return; }
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => { if (e.isIntersecting) { e.target.loading = 'eager'; io.unobserve(e.target); } });
-    }, { rootMargin: '800px 0px' });
+    }, { rootMargin: touch ? '1600px 0px' : '1000px 0px' }); // phones flick fast: start earlier
     imgs.forEach((i) => io.observe(i));
   }
 
@@ -813,9 +828,11 @@
            .from('.hero-meta > *, .hero-rec', { opacity: 0, y: RISE / 2, duration: DUR.base, stagger: STAGGER.items }, `-=${DUR.base}`);
       // scrolling away: the name drifts a little slower than the page (so it never travels up into
       // the header) and is fully faded by the middle of the hero
+      // desktop only: on phones the page scrolls on a separate thread from JavaScript, so anything
+      // tied to the scroll position lags behind the finger and jitters; there the text simply scrolls
       const heroOut = { trigger: '.hero', start: 'top top', end: '50% top', scrub: true };
-      gsap.fromTo('.hero-inner', { y: 0, opacity: 1 }, { y: () => window.innerHeight * 0.15, opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { ...heroOut, invalidateOnRefresh: true } });
-      gsap.fromTo('.hero-rec', { opacity: 1 }, { opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { trigger: '.hero', start: 'top top', end: '20% top', scrub: true } });
+      if (!touch) gsap.fromTo('.hero-inner', { y: 0, opacity: 1 }, { y: () => window.innerHeight * 0.15, opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { ...heroOut, invalidateOnRefresh: true } });
+      if (!touch) gsap.fromTo('.hero-rec', { opacity: 1 }, { opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { trigger: '.hero', start: 'top top', end: '20% top', scrub: true } });
       if (!touch) gsap.to('.hero-media', { scale: 1.12, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
     }
 
@@ -825,12 +842,12 @@
       const hero = h.closest('.page-hero');
       if (!touch) gsap.to($('.media', hero), { yPercent: 12, scale: 1.06, ease: 'none', scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } });
       // title and label fade out while scrolling away, same as on the home page
-      gsap.fromTo($('.inner', hero), { y: 0, opacity: 1 }, { y: () => window.innerHeight * 0.1, opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { trigger: hero, start: 'top top', end: '55% top', scrub: true, invalidateOnRefresh: true } });
+      if (!touch) gsap.fromTo($('.inner', hero), { y: 0, opacity: 1 }, { y: () => window.innerHeight * 0.1, opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { trigger: hero, start: 'top top', end: '55% top', scrub: true, invalidateOnRefresh: true } });
     });
     $$('.page-hero [data-hero-fade]').forEach((el) => enter.from(el, { opacity: 0, y: RISE / 2, duration: DUR.base }, `-=${DUR.base}`));
 
     // About statement: words light up while scrolling
-    $$('[data-scrub-words]').forEach((el) => {
+    if (!touch) $$('[data-scrub-words]').forEach((el) => {
       const words = splitWords(el);
       gsap.set(words, { opacity: 0.14 });
       // fully lit by the time the line reaches the middle of the screen
@@ -868,12 +885,13 @@
       gsap.set(items, { opacity: 0, y: RISE });
       ScrollTrigger.batch(items, { start: START, onEnter: (b) => gsap.to(b, { opacity: 1, y: 0, duration, stagger: STAGGER.items, overwrite: true }) });
     };
-    $$('.masonry').forEach((m) => batchReveal($$('.tile', m), DUR.base));
-    batchReveal($$('#strip-track .strip-item'));
+    $$('.masonry').forEach((m) => batchReveal($$('.tile', m), touch ? DUR.fast : DUR.base));
+    batchReveal($$('#strip-track .strip-item'), touch ? DUR.base : DUR.slow);
 
-    // portfolio couples: photo opens from the bottom, caption follows
+    // portfolio couples: photo opens from the bottom, caption follows (phones: a quick fade)
     const couples = $$('.couple');
-    if (couples.length) {
+    if (couples.length && touch) batchReveal(couples, DUR.base); // phones: photo shows as soon as it arrives
+    else if (couples.length) {
       gsap.set(couples.map((c) => $('.couple-media', c)), { clipPath: 'inset(100% 0% 0% 0%)' });
       gsap.set(couples.map((c) => $('.couple-info', c)), { opacity: 0, y: RISE / 2 });
       ScrollTrigger.batch(couples, {
@@ -893,7 +911,7 @@
     }
 
     // footer name drifts in
-    gsap.from('.footer-mark', { xPercent: -4, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.site-footer', start: 'top bottom', end: 'bottom bottom', scrub: true } });
+    if (!touch) gsap.from('.footer-mark', { xPercent: -4, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.site-footer', start: 'top bottom', end: 'bottom bottom', scrub: true } });
 
     // all grids use fixed proportions, so the page only needs re-measuring once everything has loaded
     window.addEventListener('load', () => ScrollTrigger.refresh(), { once: true });

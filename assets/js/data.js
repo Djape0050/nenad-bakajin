@@ -6,7 +6,8 @@
    ========================================================================== */
 
 // Original photo: only resized to a width, never cropped, no filters.
-const IMG = (id, w = 1400) => `https://images.unsplash.com/photo-${id}?w=${w}&q=88&auto=format`;
+// w = width in px. q 80 looks the same as 88 on screen and is ~12% lighter; auto=format sends AVIF/WebP.
+const IMG = (id, w = 1400, q = 80) => `https://images.unsplash.com/photo-${id}?w=${w}&q=${q}&auto=format&fit=max`;
 
 const PX = 'https://videos.pexels.com/video-files/';
 
